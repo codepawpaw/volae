@@ -250,4 +250,11 @@ writeFileSync(path.join(seedDir, "categories.json"), JSON.stringify(categories, 
 writeFileSync(path.join(seedDir, "products.json"), JSON.stringify(products, null, 2) + "\n");
 writeFileSync(path.join(seedDir, "subscribers.json"), "[]\n");
 writeFileSync(path.join(seedDir, "orders.json"), "[]\n");
+const settings = {
+  homeFeatured: {
+    title: "Cold snaps, rainy days, windy runs. There’s outerwear for it all.",
+    categoryIds: ["c_w_coats", "c_m_coats"],
+  },
+};
+writeFileSync(path.join(seedDir, "settings.json"), JSON.stringify(settings, null, 2) + "\n");
 console.log(`Seed written: ${brands.length} brands, ${categories.length} categories, ${products.length} products.`);

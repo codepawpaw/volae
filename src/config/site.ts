@@ -39,8 +39,7 @@ export const site = {
 
   // Link di samping banner beranda.
   heroLinks: [
-    { label: "Women's What's New", href: "/whats-new?dept=women" },
-    { label: "Men's What's New", href: "/whats-new?dept=men" },
+    { label: "Sports", href: "/sports" },
     { label: "All Women's", href: "/c/women" },
     { label: "All Men's", href: "/c/men" },
     { label: "Accessories", href: "/c/accessories" },

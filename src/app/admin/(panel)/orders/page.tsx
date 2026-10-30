@@ -29,7 +29,7 @@ export default async function OrdersPage({ searchParams }: PageProps<"/admin/ord
     <>
       <PageHeader title="Pesanan" />
       <p className="-mt-4 mb-6 max-w-2xl text-[14px] text-muted">
-        Setiap checkout via WhatsApp tersimpan di sini (data/orders.json). Ubah status setelah pesanan dikonfirmasi atau
+        Setiap checkout via WhatsApp tersimpan di sini. Ubah status setelah pesanan dikonfirmasi atau
         dibayar di WhatsApp.
       </p>
 

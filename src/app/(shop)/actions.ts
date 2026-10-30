@@ -3,7 +3,7 @@
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { getCatalog } from "@/lib/catalog";
-import { transaction } from "@/lib/db";
+import { addSubscriber, countOrdersWithPrefix, insertOrder, transaction } from "@/lib/db";
 import type { Order } from "@/lib/types";
 import { orderMessage, whatsappLink } from "@/lib/whatsapp";
 
@@ -13,11 +13,7 @@ export async function subscribe(_prev: SubscribeState, formData: FormData): Prom
   const parsed = z.email().max(254).safeParse(String(formData.get("email") ?? "").trim().toLowerCase());
   if (!parsed.success) return { ok: false, message: "Please enter a valid email address." };
   const email = parsed.data;
-  await transaction((db) => {
-    if (!db.subscribers.some((s) => s.email === email)) {
-      db.subscribers.push({ email, createdAt: new Date().toISOString() });
-    }
-  });
+  await addSubscriber(email);
   return { ok: true, message: "Thanks for signing up! Watch your inbox." };
 }
 
@@ -78,7 +74,7 @@ export type CheckoutInput = z.input<typeof checkoutSchema>;
 export type CheckoutResult = { ok: true; url: string; number: string } | { ok: false; error: string };
 
 /**
- * Saves the order to data/orders.json using current catalogue prices and returns the
+ * Saves the order to the database using current catalogue prices and returns the
  * WhatsApp link that sends it to the shop.
  */
 export async function placeOrder(input: CheckoutInput): Promise<CheckoutResult> {
@@ -109,9 +105,9 @@ export async function placeOrder(input: CheckoutInput): Promise<CheckoutResult> 
   }
 
   const now = new Date();
-  const order = await transaction((db) => {
+  const order = await transaction(async (tx) => {
     const today = now.toISOString().slice(2, 10).replace(/-/g, "");
-    const todayCount = db.orders.filter((o) => o.number.startsWith(`VL${today}`)).length;
+    const todayCount = await countOrdersWithPrefix(tx, `VL${today}`);
     const created: Order = {
       id: `o_${randomUUID()}`,
       number: `VL${today}${String(todayCount + 1).padStart(3, "0")}`,
@@ -122,7 +118,7 @@ export async function placeOrder(input: CheckoutInput): Promise<CheckoutResult> 
       createdAt: now.toISOString(),
       updatedAt: now.toISOString(),
     };
-    db.orders.unshift(created);
+    await insertOrder(tx, created);
     return created;
   });
 

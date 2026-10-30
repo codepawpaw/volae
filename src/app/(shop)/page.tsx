@@ -5,16 +5,16 @@ import { Hero } from "@/components/Hero";
 import { ProductCarousel } from "@/components/ProductCarousel";
 import { site } from "@/config/site";
 import { cardBrands } from "@/lib/card-brands";
-import { buildCategoryTree, getCatalog } from "@/lib/catalog";
+import { buildCategoryTree, categoryScope, getCatalog, getSettings } from "@/lib/catalog";
 import type { Product } from "@/lib/types";
 
 export default async function HomePage() {
-  const { brands, categories, products } = await getCatalog();
+  const [{ brands, categories, products }, { homeFeatured }] = await Promise.all([getCatalog(), getSettings()]);
   const brandMap = cardBrands(brands);
   const departments = buildCategoryTree(categories);
-  const outerwearIds = new Set(categories.filter((c) => c.slug.endsWith("coats-jackets")).map((c) => c.id));
+  const featuredIds = new Set(homeFeatured.categoryIds.flatMap((id) => [...categoryScope(categories, id)]));
 
-  const outerwear = products.filter((p) => outerwearIds.has(p.categoryId));
+  const featured = products.filter((p) => featuredIds.has(p.categoryId));
   const bestsellers = products.filter((p) => p.badge === "Bestseller");
   const whatsNew = products.filter((p) => p.isNew);
   const sale = products.filter((p) => p.salePrice !== null);
@@ -24,8 +24,8 @@ export default async function HomePage() {
       <Hero title={site.brandName} links={site.heroLinks} slides={site.heroSlides} />
 
       <ProductSection
-        title="Cold snaps, rainy days, windy runs. There’s outerwear for it all."
-        products={outerwear.length ? outerwear : products.slice(0, 8)}
+        title={homeFeatured.title}
+        products={featured.length ? featured : products.slice(0, 8)}
         brands={brandMap}
       />
 

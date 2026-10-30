@@ -25,17 +25,24 @@ Ubah `src/config/site.ts`:
 - `heroSlides` dan `heroLinks`: banner dan link di beranda (gambar di `public/images`).
 - `activities`: daftar aktivitas (Running, Yoga, dst.) untuk filter dan menu.
 
-## Data (JSON)
+## Data (Supabase Postgres)
 
-- `seed/*.json`: katalog contoh (5 brand, 28 kategori, 30 produk). Dibuat ulang dengan `npm run generate-seed`.
-- `data/*.json`: data aktif. Dibuat otomatis dari `seed/` saat pertama kali ada perubahan.
-  - `brands.json`, `categories.json`, `products.json`
-  - `orders.json`: setiap checkout WhatsApp
-  - `subscribers.json`: pendaftar Email Signup
-- `storage/uploads/`: foto yang diunggah lewat admin.
-- `npm run reset-data` menghapus `data/` sehingga toko kembali ke data contoh.
+Semua data tersimpan di Postgres Supabase dan diakses lewat `src/lib/db.ts` memakai `DATABASE_URL`.
 
-Backup cukup dengan menyalin folder `data/` dan `storage/`.
+- Skema: `supabase/migrations/`. Tabel `brands`, `categories`, `products`, `orders` + `order_items`, `subscribers`, `settings`.
+- `seed/*.json`: katalog contoh (5 brand, 28 kategori, 30 produk). Dibuat ulang dengan `npm run generate-seed`,
+  lalu `npm run db:seed-sql` untuk memperbarui `supabase/seed.sql`.
+- Menjalankan migration + seed: `npm run db:push -- --db-url "$DATABASE_URL"` (Supabase CLI).
+- `storage/uploads/`: foto yang diunggah lewat admin (masih di disk lokal).
+
+Environment variable:
+
+- `DATABASE_URL`: connection string pooler Supabase, mis.
+  `postgresql://postgres.<ref>:<password>@aws-0-eu-west-1.pooler.supabase.com:6543/postgres`
+- `ADMIN_USERNAME`, `ADMIN_PASSWORD`: login admin. Login ditolak jika salah satunya kosong.
+- `ADMIN_SECRET`: kunci penanda tangan sesi admin.
+
+Untuk lokal, isi variabel di atas di `.env.local`.
 
 ## Multi-brand
 
@@ -46,7 +53,7 @@ Backup cukup dengan menyalin folder `data/` dan `storage/`.
 ## Checkout via WhatsApp
 
 1. Pembeli mengisi bag lalu klik **Checkout via WhatsApp** dan mengisi nama, nomor WhatsApp, dan alamat.
-2. Server menghitung ulang harga dari katalog, menyimpan pesanan ke `data/orders.json` dengan nomor seperti `VL261029001`.
+2. Server menghitung ulang harga dari katalog, menyimpan pesanan ke database dengan nomor seperti `VL261029001`.
 3. Pembeli diarahkan ke WhatsApp dengan pesan pesanan yang sudah terisi.
 4. Di **Admin → Pesanan** Anda bisa melihat detail, menghubungi pembeli, dan mengubah status (Baru → Dikonfirmasi → Dibayar → Dikirim → Selesai).
 
@@ -59,6 +66,7 @@ Backup cukup dengan menyalin folder `data/` dan `storage/`.
 Di admin:
 - **Produk**: brand, kategori, harga & harga diskon, deskripsi, fitur, aktivitas, warna (tiap warna bisa dipasangkan ke fotonya), ukuran, maks. 8 foto, badge (`Bestseller` otomatis masuk halaman Bestsellers), What's New, aktif/nonaktif.
 - **Kategori**: kategori utama = menu atas (Women, Men, Accessories, Bags); sub-kategori tampil di mega menu.
+- **Beranda**: judul dan kategori produk untuk carousel pertama di bawah banner beranda.
 
 ## Halaman toko
 
@@ -67,6 +75,7 @@ Di admin:
 | `/` | Beranda: hero, carousel produk, kategori, brand, promo |
 | `/c/[slug]` | Kategori dengan filter (Category, Brand, Size, Colour, Activity) dan sort |
 | `/brands`, `/brands/[slug]` | Daftar brand dan produk per brand |
+| `/sports` | Semua produk yang punya aktivitas; `?activity=Running` untuk satu aktivitas |
 | `/whats-new`, `/bestsellers`, `/sale` | Koleksi; tambahkan `?dept=women` untuk satu departemen |
 | `/search?q=` | Pencarian |
 | `/p/[slug]` | Detail produk |

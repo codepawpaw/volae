@@ -1,7 +1,7 @@
 import "server-only";
 import { cacheLife, cacheTag } from "next/cache";
-import { readDatabase } from "./db";
-import type { Brand, Category, CategoryNode, Product } from "./types";
+import { listBrands, listCategories, listProducts, readSettings } from "./db";
+import type { Brand, Category, CategoryNode, Product, Settings } from "./types";
 
 export const CATALOG_TAG = "catalog";
 
@@ -12,14 +12,24 @@ export async function getCatalog(): Promise<Catalog> {
   "use cache";
   cacheTag(CATALOG_TAG);
   cacheLife("max");
-  const db = await readDatabase();
+  const [brands, categories, products] = await Promise.all([listBrands(), listCategories(), listProducts()]);
   return {
-    brands: [...db.brands].sort(byOrder),
-    categories: [...db.categories].sort(byOrder),
-    products: db.products
-      .filter((p) => p.isActive)
-      .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
+    brands: brands.sort(byOrder),
+    categories: categories.sort(byOrder),
+    products: products.filter((p) => p.isActive),
   };
+}
+
+const DEFAULT_SETTINGS: Settings = {
+  homeFeatured: { title: "Cold snaps, rainy days, windy runs. There’s outerwear for it all.", categoryIds: [] },
+};
+
+/** Storefront settings edited in Admin → Beranda. Shares the catalog cache tag. */
+export async function getSettings(): Promise<Settings> {
+  "use cache";
+  cacheTag(CATALOG_TAG);
+  cacheLife("max");
+  return { ...DEFAULT_SETTINGS, ...(await readSettings()) };
 }
 
 function byOrder(a: { order: number; name: string }, b: { order: number; name: string }) {

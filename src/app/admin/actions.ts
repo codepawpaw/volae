@@ -6,7 +6,18 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { checkCredentials, endSession, requireAdmin, startSession } from "@/lib/auth";
 import { CATALOG_TAG } from "@/lib/catalog";
-import { transaction } from "@/lib/db";
+import {
+  deleteRow,
+  listBrands,
+  listCategories,
+  listProducts,
+  saveSetting,
+  setOrderStatus,
+  transaction,
+  upsertBrand,
+  upsertCategory,
+  upsertProduct,
+} from "@/lib/db";
 import { slugify } from "@/lib/format";
 import { ORDER_STATUSES, type Brand, type Category, type Product } from "@/lib/types";
 import { deleteImages, filesFrom, saveImage, validateImage } from "@/lib/uploads";
@@ -99,23 +110,24 @@ export async function saveCategory(_prev: FormState, formData: FormData): Promis
   const removeImage = formData.get("removeImage") === "on";
 
   const outcome = await withUploads(imageFile ? [imageFile] : [], (urls) =>
-    transaction((db): FormState | { oldImage: string | null } => {
-      const existing = id ? db.categories.find((c) => c.id === id) : undefined;
+    transaction(async (tx): Promise<FormState | { oldImage: string | null }> => {
+      const categories = await listCategories(tx);
+      const existing = id ? categories.find((c) => c.id === id) : undefined;
       if (id && !existing) return { error: "Kategori tidak ditemukan. Mungkin sudah dihapus." };
 
       let parent: Category | undefined;
       if (data.parentId) {
-        parent = db.categories.find((c) => c.id === data.parentId);
+        parent = categories.find((c) => c.id === data.parentId);
         if (!parent) return { fieldErrors: { parentId: "Kategori induk tidak ditemukan." } };
         if (parent.parentId !== null) return { fieldErrors: { parentId: "Kategori induk harus kategori utama." } };
         if (parent.id === id) return { fieldErrors: { parentId: "Kategori tidak bisa menjadi induk dirinya sendiri." } };
-        if (id && db.categories.some((c) => c.parentId === id)) {
+        if (id && categories.some((c) => c.parentId === id)) {
           return { fieldErrors: { parentId: "Kategori ini punya sub-kategori, jadi harus tetap kategori utama." } };
         }
       }
 
       const base = parent ? `${parent.slug}-${slugify(data.name)}` : slugify(data.name);
-      const others = db.categories.filter((c) => c.id !== id);
+      const others = categories.filter((c) => c.id !== id);
       const keepSlug = existing && existing.name === data.name && existing.parentId === data.parentId;
       const slug = keepSlug ? existing.slug : uniqueSlug(base, others.map((c) => c.slug));
 
@@ -131,7 +143,7 @@ export async function saveCategory(_prev: FormState, formData: FormData): Promis
         order: data.order,
         createdAt: existing?.createdAt ?? new Date().toISOString(),
       };
-      db.categories = existing ? db.categories.map((c) => (c.id === id ? category : c)) : [...db.categories, category];
+      await upsertCategory(tx, category);
       return { oldImage: oldImage !== image ? oldImage : null };
     }),
     (result) => !result || !("oldImage" in result),
@@ -146,17 +158,19 @@ export async function saveCategory(_prev: FormState, formData: FormData): Promis
 export async function deleteCategory(_prev: FormState, formData: FormData): Promise<FormState> {
   await requireAdmin();
   const id = text(formData, "id");
-  const result = await transaction((db): FormState | { image: string | null } => {
-    const category = db.categories.find((c) => c.id === id);
+  const result = await transaction(async (tx): Promise<FormState | { image: string | null }> => {
+    const categories = await listCategories(tx);
+    const products = await listProducts(tx);
+    const category = categories.find((c) => c.id === id);
     if (!category) return { error: "Kategori tidak ditemukan." };
-    const productCount = db.products.filter((p) => p.categoryId === id).length;
+    const productCount = products.filter((p) => p.categoryId === id).length;
     if (productCount > 0) {
       return { error: `Tidak bisa dihapus: masih ada ${productCount} produk di kategori ini. Pindahkan atau hapus produknya dulu.` };
     }
-    if (db.categories.some((c) => c.parentId === id)) {
+    if (categories.some((c) => c.parentId === id)) {
       return { error: "Tidak bisa dihapus: kategori ini masih punya sub-kategori." };
     }
-    db.categories = db.categories.filter((c) => c.id !== id);
+    await deleteRow(tx, "categories", id);
     return { image: category.image };
   });
   if (result && !("image" in result)) return result;
@@ -195,8 +209,9 @@ export async function saveBrand(_prev: FormState, formData: FormData): Promise<F
   const files = [logoFile, imageFile].filter((f): f is File => !!f);
 
   const outcome = await withUploads(files, (urls) =>
-    transaction((db): FormState | { removed: string[] } => {
-      const existing = id ? db.brands.find((b) => b.id === id) : undefined;
+    transaction(async (tx): Promise<FormState | { removed: string[] }> => {
+      const brands = await listBrands(tx);
+      const existing = id ? brands.find((b) => b.id === id) : undefined;
       if (id && !existing) return { error: "Brand tidak ditemukan. Mungkin sudah dihapus." };
 
       const uploaded = [...urls];
@@ -205,7 +220,7 @@ export async function saveBrand(_prev: FormState, formData: FormData): Promise<F
       const logo = newLogo ?? (formData.get("removeLogo") === "on" ? null : (existing?.logo ?? null));
       const image = newImage ?? (formData.get("removeImage") === "on" ? null : (existing?.image ?? null));
 
-      const others = db.brands.filter((b) => b.id !== id);
+      const others = brands.filter((b) => b.id !== id);
       const slug =
         existing && existing.name === data.name ? existing.slug : uniqueSlug(slugify(data.name), others.map((b) => b.slug));
       const brand: Brand = {
@@ -218,7 +233,7 @@ export async function saveBrand(_prev: FormState, formData: FormData): Promise<F
         order: data.order,
         createdAt: existing?.createdAt ?? new Date().toISOString(),
       };
-      db.brands = existing ? db.brands.map((b) => (b.id === id ? brand : b)) : [...db.brands, brand];
+      await upsertBrand(tx, brand);
       const before = [existing?.logo ?? null, existing?.image ?? null];
       return { removed: before.filter((url): url is string => !!url && url !== logo && url !== image) };
     }),
@@ -234,14 +249,16 @@ export async function saveBrand(_prev: FormState, formData: FormData): Promise<F
 export async function deleteBrand(_prev: FormState, formData: FormData): Promise<FormState> {
   await requireAdmin();
   const id = text(formData, "id");
-  const result = await transaction((db): FormState | { images: string[] } => {
-    const brand = db.brands.find((b) => b.id === id);
+  const result = await transaction(async (tx): Promise<FormState | { images: string[] }> => {
+    const brands = await listBrands(tx);
+    const products = await listProducts(tx);
+    const brand = brands.find((b) => b.id === id);
     if (!brand) return { error: "Brand tidak ditemukan." };
-    const productCount = db.products.filter((p) => p.brandId === id).length;
+    const productCount = products.filter((p) => p.brandId === id).length;
     if (productCount > 0) {
       return { error: `Tidak bisa dihapus: masih ada ${productCount} produk dari brand ini. Pindahkan atau hapus produknya dulu.` };
     }
-    db.brands = db.brands.filter((b) => b.id !== id);
+    await deleteRow(tx, "brands", id);
     return { images: [brand.logo, brand.image].filter((url): url is string => !!url) };
   });
   if (result && !("images" in result)) return result;
@@ -348,13 +365,17 @@ export async function saveProduct(_prev: FormState, formData: FormData): Promise
   }
 
   const outcome = await withUploads(newFiles, (urls) =>
-    transaction((db): FormState | { removed: string[] } => {
-      const existing = id ? db.products.find((p) => p.id === id) : undefined;
+    transaction(async (tx): Promise<FormState | { removed: string[] }> => {
+      // One query at a time: a transaction runs on a single connection.
+      const products = await listProducts(tx);
+      const categories = await listCategories(tx);
+      const brands = await listBrands(tx);
+      const existing = id ? products.find((p) => p.id === id) : undefined;
       if (id && !existing) return { error: "Produk tidak ditemukan. Mungkin sudah dihapus." };
-      if (!db.categories.some((c) => c.id === data.categoryId)) {
+      if (!categories.some((c) => c.id === data.categoryId)) {
         return { fieldErrors: { categoryId: "Kategori tidak ditemukan." } };
       }
-      if (!db.brands.some((b) => b.id === data.brandId)) {
+      if (!brands.some((b) => b.id === data.brandId)) {
         return { fieldErrors: { brandId: "Brand tidak ditemukan." } };
       }
       // Only images that already belong to this product may be kept.
@@ -363,7 +384,7 @@ export async function saveProduct(_prev: FormState, formData: FormData): Promise
         return { error: "Data foto tidak valid. Muat ulang halaman lalu coba lagi." };
       }
 
-      const others = db.products.filter((p) => p.id !== id);
+      const others = products.filter((p) => p.id !== id);
       const slug =
         existing && existing.name === data.name ? existing.slug : uniqueSlug(slugify(data.name), others.map((p) => p.slug));
       const now = new Date().toISOString();
@@ -377,7 +398,7 @@ export async function saveProduct(_prev: FormState, formData: FormData): Promise
         createdAt: existing?.createdAt ?? now,
         updatedAt: now,
       };
-      db.products = existing ? db.products.map((p) => (p.id === id ? product : p)) : [product, ...db.products];
+      await upsertProduct(tx, product);
       return { removed: current.filter((url) => !keptImages.includes(url)) };
     }),
     (result) => !result || !("removed" in result),
@@ -392,16 +413,42 @@ export async function saveProduct(_prev: FormState, formData: FormData): Promise
 export async function deleteProduct(_prev: FormState, formData: FormData): Promise<FormState> {
   await requireAdmin();
   const id = text(formData, "id");
-  const images = await transaction((db) => {
-    const product = db.products.find((p) => p.id === id);
+  const images = await transaction(async (tx) => {
+    const product = (await listProducts(tx)).find((p) => p.id === id);
     if (!product) return null;
-    db.products = db.products.filter((p) => p.id !== id);
+    await deleteRow(tx, "products", id);
     return product.images;
   });
   if (!images) return { error: "Produk tidak ditemukan." };
   await deleteImages(images);
   updateTag(CATALOG_TAG);
   redirect("/admin/products?deleted=1");
+}
+
+// ---------- Homepage ----------
+
+const homeFeaturedSchema = z.object({
+  title: z.string().min(1, "Judul wajib diisi.").max(140, "Maksimal 140 karakter."),
+  categoryIds: z.array(z.string().max(100)).max(50),
+});
+
+export async function saveHomeSettings(_prev: FormState, formData: FormData): Promise<FormState> {
+  await requireAdmin();
+  const parsed = homeFeaturedSchema.safeParse({
+    title: text(formData, "title"),
+    categoryIds: formData.getAll("categoryIds").map(String),
+  });
+  if (!parsed.success) return { fieldErrors: fieldErrors(parsed.error) };
+  const data = parsed.data;
+
+  await transaction(async (tx) => {
+    // Drop ids of categories that were deleted while the form was open.
+    const categories = await listCategories(tx);
+    const categoryIds = data.categoryIds.filter((id) => categories.some((c) => c.id === id));
+    await saveSetting(tx, "homeFeatured", { title: data.title, categoryIds });
+  });
+  updateTag(CATALOG_TAG);
+  redirect("/admin/home?saved=1");
 }
 
 // ---------- Orders ----------
@@ -411,11 +458,6 @@ export async function updateOrderStatus(formData: FormData) {
   const id = text(formData, "id");
   const status = z.enum(ORDER_STATUSES).safeParse(text(formData, "status"));
   if (!status.success) return;
-  await transaction((db) => {
-    const order = db.orders.find((o) => o.id === id);
-    if (!order) return;
-    order.status = status.data;
-    order.updatedAt = new Date().toISOString();
-  });
+  await setOrderStatus(id, status.data);
   refresh();
 }

@@ -50,7 +50,8 @@ export const ORDER_STATUSES = ["new", "confirmed", "paid", "shipped", "completed
 export type OrderStatus = (typeof ORDER_STATUSES)[number];
 
 export type OrderLine = {
-  productId: string;
+  /** null once the product has been deleted; the rest of the line is a snapshot. */
+  productId: string | null;
   name: string;
   brand: string;
   color: string;
@@ -70,12 +71,18 @@ export type Order = {
   updatedAt: string;
 };
 
+/** The product carousel right under the homepage hero. Products come from these categories (and their sub-categories). */
+export type HomeFeatured = { title: string; categoryIds: string[] };
+
+export type Settings = { homeFeatured: HomeFeatured };
+
 export type Database = {
   brands: Brand[];
   categories: Category[];
   products: Product[];
   subscribers: Subscriber[];
   orders: Order[];
+  settings: Settings;
 };
 
 export type CategoryNode = Category & { children: Category[] };

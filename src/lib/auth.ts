@@ -10,9 +10,6 @@ import {
   verifySessionToken,
 } from "./session";
 
-// TEMPORARY: hardcoded admin credentials. Replace with real user accounts before going live.
-const ADMIN_USERNAME = "admin";
-const ADMIN_PASSWORD = "12345";
 
 function safeEqual(a: string, b: string) {
   const left = Buffer.from(a);
@@ -20,9 +17,13 @@ function safeEqual(a: string, b: string) {
   return left.length === right.length && timingSafeEqual(left, right);
 }
 
+/** Checks against ADMIN_USERNAME / ADMIN_PASSWORD. Login is refused while either is unset. */
 export function checkCredentials(username: string, password: string): boolean {
-  const userOk = safeEqual(username, ADMIN_USERNAME);
-  const passOk = safeEqual(password, ADMIN_PASSWORD);
+  const expectedUsername = process.env.ADMIN_USERNAME;
+  const expectedPassword = process.env.ADMIN_PASSWORD;
+  if (!expectedUsername || !expectedPassword) return false;
+  const userOk = safeEqual(username, expectedUsername);
+  const passOk = safeEqual(password, expectedPassword);
   return userOk && passOk;
 }
 

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ExternalLink, FolderTree, LayoutDashboard, LogOut, ReceiptText, Shirt, Tag } from "lucide-react";
+import { ExternalLink, FolderTree, House, LayoutDashboard, LogOut, ReceiptText, Shirt, Tag } from "lucide-react";
 import { LogoMark } from "@/components/Logo";
 import { site } from "@/config/site";
 import { logout } from "../actions";
@@ -16,6 +16,7 @@ const NAV = [
   { href: "/admin/products", label: "Produk", icon: Shirt },
   { href: "/admin/brands", label: "Brand", icon: Tag },
   { href: "/admin/categories", label: "Kategori", icon: FolderTree },
+  { href: "/admin/home", label: "Beranda", icon: House },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
