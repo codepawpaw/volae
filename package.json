@@ -8,7 +8,9 @@
     "start": "next start",
     "lint": "eslint",
     "generate-seed": "node scripts/generate-seed.mjs",
-    "reset-data": "node -e \"require('fs').rmSync('data',{recursive:true,force:true})\""
+    "reset-data": "node -e \"require('fs').rmSync('data',{recursive:true,force:true})\"",
+    "db:seed-sql": "node scripts/generate-seed-sql.mjs",
+    "db:push": "supabase db push --include-seed"
   },
   "dependencies": {
     "@fontsource/hanken-grotesk": "^5.3.0",
