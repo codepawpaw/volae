@@ -1,0 +1,52 @@
+[
+  {
+    "id": "b_volae",
+    "name": "Volae",
+    "slug": "volae",
+    "description": "Our own technical apparel, designed to move from the studio to the street.",
+    "logo": null,
+    "image": "/images/story.jpg",
+    "order": 1,
+    "createdAt": "2026-08-29T00:00:00.000Z"
+  },
+  {
+    "id": "b_northline",
+    "name": "Northline",
+    "slug": "northline",
+    "description": "Outerwear engineered for cold snaps, rainy days and windy runs.",
+    "logo": null,
+    "image": "/images/men.jpg",
+    "order": 2,
+    "createdAt": "2026-08-29T00:00:00.000Z"
+  },
+  {
+    "id": "b_kinetiq",
+    "name": "Kinetiq",
+    "slug": "kinetiq",
+    "description": "Lightweight running and training gear built for speed.",
+    "logo": null,
+    "image": "/images/home.jpg",
+    "order": 3,
+    "createdAt": "2026-08-29T00:00:00.000Z"
+  },
+  {
+    "id": "b_sola",
+    "name": "Sola Studio",
+    "slug": "sola-studio",
+    "description": "Buttery-soft yoga and lounge essentials.",
+    "logo": null,
+    "image": "/images/women.jpg",
+    "order": 4,
+    "createdAt": "2026-08-29T00:00:00.000Z"
+  },
+  {
+    "id": "b_harbor",
+    "name": "Harbor & Pine",
+    "slug": "harbor-and-pine",
+    "description": "Bags and accessories for every commute and every trip.",
+    "logo": null,
+    "image": "/images/sale.jpg",
+    "order": 5,
+    "createdAt": "2026-08-29T00:00:00.000Z"
+  }
+]

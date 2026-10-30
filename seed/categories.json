@@ -1,0 +1,282 @@
+[
+  {
+    "id": "c_women",
+    "name": "Women",
+    "slug": "women",
+    "parentId": null,
+    "description": "Leggings, outerwear and tops designed for how you move.",
+    "image": "/images/women.jpg",
+    "order": 1,
+    "createdAt": "2026-08-29T00:00:00.000Z"
+  },
+  {
+    "id": "c_men",
+    "name": "Men",
+    "slug": "men",
+    "parentId": null,
+    "description": "Technical layers and everyday essentials that keep up with you.",
+    "image": "/images/men.jpg",
+    "order": 2,
+    "createdAt": "2026-08-29T00:00:00.000Z"
+  },
+  {
+    "id": "c_accessories",
+    "name": "Accessories",
+    "slug": "accessories",
+    "parentId": null,
+    "description": "The finishing touches: caps, socks, bottles and mats.",
+    "image": "/images/sale.jpg",
+    "order": 3,
+    "createdAt": "2026-08-29T00:00:00.000Z"
+  },
+  {
+    "id": "c_bags",
+    "name": "Bags",
+    "slug": "bags",
+    "parentId": null,
+    "description": "Backpacks, crossbody and belt bags for every day.",
+    "image": "/images/new-in.jpg",
+    "order": 4,
+    "createdAt": "2026-08-29T00:00:00.000Z"
+  },
+  {
+    "id": "c_w_coats",
+    "name": "Coats & Jackets",
+    "slug": "women-coats-jackets",
+    "parentId": "c_women",
+    "description": "Puffers, rain shells and running jackets.",
+    "image": null,
+    "order": 1,
+    "createdAt": "2026-08-29T00:00:00.000Z"
+  },
+  {
+    "id": "c_w_hoodies",
+    "name": "Hoodies & Sweatshirts",
+    "slug": "women-hoodies-sweatshirts",
+    "parentId": "c_women",
+    "description": "",
+    "image": null,
+    "order": 2,
+    "createdAt": "2026-08-29T00:00:00.000Z"
+  },
+  {
+    "id": "c_w_leggings",
+    "name": "Leggings",
+    "slug": "women-leggings",
+    "parentId": "c_women",
+    "description": "",
+    "image": null,
+    "order": 3,
+    "createdAt": "2026-08-29T00:00:00.000Z"
+  },
+  {
+    "id": "c_w_joggers",
+    "name": "Joggers",
+    "slug": "women-joggers",
+    "parentId": "c_women",
+    "description": "",
+    "image": null,
+    "order": 4,
+    "createdAt": "2026-08-29T00:00:00.000Z"
+  },
+  {
+    "id": "c_w_tops",
+    "name": "Tops",
+    "slug": "women-tops",
+    "parentId": "c_women",
+    "description": "",
+    "image": null,
+    "order": 5,
+    "createdAt": "2026-08-29T00:00:00.000Z"
+  },
+  {
+    "id": "c_w_bras",
+    "name": "Sports Bras",
+    "slug": "women-sports-bras",
+    "parentId": "c_women",
+    "description": "",
+    "image": null,
+    "order": 6,
+    "createdAt": "2026-08-29T00:00:00.000Z"
+  },
+  {
+    "id": "c_w_shorts",
+    "name": "Shorts",
+    "slug": "women-shorts",
+    "parentId": "c_women",
+    "description": "",
+    "image": null,
+    "order": 7,
+    "createdAt": "2026-08-29T00:00:00.000Z"
+  },
+  {
+    "id": "c_w_dresses",
+    "name": "Dresses",
+    "slug": "women-dresses",
+    "parentId": "c_women",
+    "description": "",
+    "image": null,
+    "order": 8,
+    "createdAt": "2026-08-29T00:00:00.000Z"
+  },
+  {
+    "id": "c_m_hoodies",
+    "name": "Hoodies & Sweatshirts",
+    "slug": "men-hoodies-sweatshirts",
+    "parentId": "c_men",
+    "description": "",
+    "image": null,
+    "order": 1,
+    "createdAt": "2026-08-29T00:00:00.000Z"
+  },
+  {
+    "id": "c_m_coats",
+    "name": "Coats & Jackets",
+    "slug": "men-coats-jackets",
+    "parentId": "c_men",
+    "description": "Puffers, rain shells and running jackets.",
+    "image": null,
+    "order": 2,
+    "createdAt": "2026-08-29T00:00:00.000Z"
+  },
+  {
+    "id": "c_m_shorts",
+    "name": "Shorts",
+    "slug": "men-shorts",
+    "parentId": "c_men",
+    "description": "",
+    "image": null,
+    "order": 3,
+    "createdAt": "2026-08-29T00:00:00.000Z"
+  },
+  {
+    "id": "c_m_trousers",
+    "name": "Trousers",
+    "slug": "men-trousers",
+    "parentId": "c_men",
+    "description": "",
+    "image": null,
+    "order": 4,
+    "createdAt": "2026-08-29T00:00:00.000Z"
+  },
+  {
+    "id": "c_m_joggers",
+    "name": "Joggers",
+    "slug": "men-joggers",
+    "parentId": "c_men",
+    "description": "",
+    "image": null,
+    "order": 5,
+    "createdAt": "2026-08-29T00:00:00.000Z"
+  },
+  {
+    "id": "c_m_tees",
+    "name": "T-Shirts",
+    "slug": "men-t-shirts",
+    "parentId": "c_men",
+    "description": "",
+    "image": null,
+    "order": 6,
+    "createdAt": "2026-08-29T00:00:00.000Z"
+  },
+  {
+    "id": "c_m_longsleeve",
+    "name": "Long Sleeve Tops",
+    "slug": "men-long-sleeve-tops",
+    "parentId": "c_men",
+    "description": "",
+    "image": null,
+    "order": 7,
+    "createdAt": "2026-08-29T00:00:00.000Z"
+  },
+  {
+    "id": "c_m_polos",
+    "name": "Polo Shirts",
+    "slug": "men-polo-shirts",
+    "parentId": "c_men",
+    "description": "",
+    "image": null,
+    "order": 8,
+    "createdAt": "2026-08-29T00:00:00.000Z"
+  },
+  {
+    "id": "c_a_caps",
+    "name": "Caps",
+    "slug": "caps",
+    "parentId": "c_accessories",
+    "description": "",
+    "image": null,
+    "order": 1,
+    "createdAt": "2026-08-29T00:00:00.000Z"
+  },
+  {
+    "id": "c_a_hats",
+    "name": "Hats",
+    "slug": "hats",
+    "parentId": "c_accessories",
+    "description": "",
+    "image": null,
+    "order": 2,
+    "createdAt": "2026-08-29T00:00:00.000Z"
+  },
+  {
+    "id": "c_a_socks",
+    "name": "Socks",
+    "slug": "socks",
+    "parentId": "c_accessories",
+    "description": "",
+    "image": null,
+    "order": 3,
+    "createdAt": "2026-08-29T00:00:00.000Z"
+  },
+  {
+    "id": "c_a_bottles",
+    "name": "Water Bottles",
+    "slug": "water-bottles",
+    "parentId": "c_accessories",
+    "description": "",
+    "image": null,
+    "order": 4,
+    "createdAt": "2026-08-29T00:00:00.000Z"
+  },
+  {
+    "id": "c_a_mats",
+    "name": "Yoga Mats",
+    "slug": "yoga-mats",
+    "parentId": "c_accessories",
+    "description": "",
+    "image": null,
+    "order": 5,
+    "createdAt": "2026-08-29T00:00:00.000Z"
+  },
+  {
+    "id": "c_b_backpacks",
+    "name": "Backpacks",
+    "slug": "backpacks",
+    "parentId": "c_bags",
+    "description": "",
+    "image": null,
+    "order": 1,
+    "createdAt": "2026-08-29T00:00:00.000Z"
+  },
+  {
+    "id": "c_b_crossbody",
+    "name": "Crossbody Bags",
+    "slug": "crossbody-bags",
+    "parentId": "c_bags",
+    "description": "",
+    "image": null,
+    "order": 2,
+    "createdAt": "2026-08-29T00:00:00.000Z"
+  },
+  {
+    "id": "c_b_totes",
+    "name": "Tote Bags",
+    "slug": "tote-bags",
+    "parentId": "c_bags",
+    "description": "",
+    "image": null,
+    "order": 3,
+    "createdAt": "2026-08-29T00:00:00.000Z"
+  }
+]
