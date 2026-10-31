@@ -5,7 +5,7 @@ import { Suspense } from "react";
 import { ProductCarousel } from "@/components/ProductCarousel";
 import { ProductDetail } from "@/components/ProductDetail";
 import { cardBrands } from "@/lib/card-brands";
-import { departmentOf, getCatalog } from "@/lib/catalog";
+import { categoryPath, departmentOf, getCatalog } from "@/lib/catalog";
 
 export async function generateMetadata({ params }: PageProps<"/p/[slug]">): Promise<Metadata> {
   const { slug } = await params;
@@ -36,7 +36,6 @@ async function ProductPageContent({ params, searchParams }: PageProps<"/p/[slug]
 
   const brandMap = cardBrands(brands);
   const brand = brands.find((b) => b.id === product.brandId);
-  const category = categories.find((c) => c.id === product.categoryId);
   const department = departmentOf(categories, product.categoryId);
   const initialColor = Math.max(0, product.colors.findIndex((c) => c.name === color));
   const related = products
@@ -46,8 +45,7 @@ async function ProductPageContent({ params, searchParams }: PageProps<"/p/[slug]
 
   const crumbs = [
     { label: "Home", href: "/" },
-    ...(department && department.id !== category?.id ? [{ label: department.name, href: `/c/${department.slug}` }] : []),
-    ...(category ? [{ label: category.name, href: `/c/${category.slug}` }] : []),
+    ...categoryPath(categories, product.categoryId).map((c) => ({ label: c.name, href: `/c/${c.slug}` })),
   ];
 
   return (

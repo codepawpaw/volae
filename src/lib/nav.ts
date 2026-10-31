@@ -25,14 +25,17 @@ export function buildNav(tree: CategoryNode[], brands: Brand[]): NavItem[] {
 
   const departments = tree.map((dept): NavItem => {
     const possessive = PERSON_DEPARTMENTS[dept.slug];
-    const columns: NavColumn[] = [
-      {
-        title: possessive ? `${possessive} Clothes` : dept.name,
-        href: `/c/${dept.slug}`,
-        links: links(dept),
-        split: dept.children.length > 5,
-      },
-    ];
+    // Three-level departments (Sports › Tennis › Overgrip) get one column per group.
+    const columns: NavColumn[] = dept.children.some((c) => c.children.length > 0)
+      ? dept.children.map((group) => ({ title: group.name, href: `/c/${group.slug}`, links: links(group) }))
+      : [
+          {
+            title: possessive ? `${possessive} Clothes` : dept.name,
+            href: `/c/${dept.slug}`,
+            links: links(dept),
+            split: dept.children.length > 5,
+          },
+        ];
     // Clothing departments also show accessories and bags, like lululemon.com.
     if (possessive && (accessories || bags)) {
       columns.push({

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { requireAdmin } from "@/lib/auth";
 import { readDatabase } from "@/lib/db";
+import { parentOptions } from "../../products/category-options";
 import { CategoryForm } from "../../../_components/CategoryForm";
 import { PageHeader } from "../../../_components/ui";
 
@@ -13,17 +14,10 @@ export default async function EditCategoryPage({ params }: PageProps<"/admin/cat
   const { categories } = await readDatabase();
   const category = categories.find((c) => c.id === id);
   if (!category) notFound();
-  const parents = categories
-    .filter((c) => c.parentId === null && c.id !== category.id)
-    .sort((a, b) => a.order - b.order);
   return (
     <>
       <PageHeader title={`Edit kategori: ${category.name}`} />
-      <CategoryForm
-        category={category}
-        parents={parents}
-        hasChildren={categories.some((c) => c.parentId === category.id)}
-      />
+      <CategoryForm category={category} parents={parentOptions(categories, category.id)} />
     </>
   );
 }

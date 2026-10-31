@@ -5,7 +5,7 @@ import { refresh, updateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { checkCredentials, endSession, requireAdmin, startSession } from "@/lib/auth";
-import { CATALOG_TAG } from "@/lib/catalog";
+import { CATALOG_TAG, categoryPath, categoryScope, subtreeHeight } from "@/lib/catalog";
 import {
   deleteRow,
   listBrands,
@@ -19,7 +19,7 @@ import {
   upsertProduct,
 } from "@/lib/db";
 import { slugify } from "@/lib/format";
-import { ORDER_STATUSES, type Brand, type Category, type Product } from "@/lib/types";
+import { MAX_CATEGORY_DEPTH, ORDER_STATUSES, type Brand, type Category, type Product } from "@/lib/types";
 import { deleteImages, filesFrom, saveImage, validateImage } from "@/lib/uploads";
 
 export type FormState = { error?: string; fieldErrors?: Record<string, string> } | null;
@@ -119,10 +119,12 @@ export async function saveCategory(_prev: FormState, formData: FormData): Promis
       if (data.parentId) {
         parent = categories.find((c) => c.id === data.parentId);
         if (!parent) return { fieldErrors: { parentId: "Kategori induk tidak ditemukan." } };
-        if (parent.parentId !== null) return { fieldErrors: { parentId: "Kategori induk harus kategori utama." } };
-        if (parent.id === id) return { fieldErrors: { parentId: "Kategori tidak bisa menjadi induk dirinya sendiri." } };
-        if (id && categories.some((c) => c.parentId === id)) {
-          return { fieldErrors: { parentId: "Kategori ini punya sub-kategori, jadi harus tetap kategori utama." } };
+        if (id && categoryScope(categories, id).has(parent.id)) {
+          return { fieldErrors: { parentId: "Kategori tidak bisa dipindah ke dalam dirinya sendiri atau sub-kategorinya." } };
+        }
+        const depth = categoryPath(categories, parent.id).length + 1 + (id ? subtreeHeight(categories, id) : 0);
+        if (depth > MAX_CATEGORY_DEPTH) {
+          return { fieldErrors: { parentId: `Struktur kategori maksimal ${MAX_CATEGORY_DEPTH} level.` } };
         }
       }
 

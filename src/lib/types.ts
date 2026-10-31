@@ -85,4 +85,7 @@ export type Database = {
   settings: Settings;
 };
 
-export type CategoryNode = Category & { children: Category[] };
+/** Department › group › sub-category, e.g. Sports › Tennis › Overgrip. */
+export const MAX_CATEGORY_DEPTH = 3;
+
+export type CategoryNode = Category & { children: CategoryNode[] };

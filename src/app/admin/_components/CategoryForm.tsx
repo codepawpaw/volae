@@ -2,13 +2,13 @@
 
 import Link from "next/link";
 import { startTransition, useActionState, useState } from "react";
-import type { Category } from "@/lib/types";
+import { MAX_CATEGORY_DEPTH, type Category } from "@/lib/types";
 import { saveCategory } from "../actions";
 import { Field, FormError, inputClass, primaryButton, secondaryButton, textareaClass } from "./ui";
 
-type Props = { category?: Category; parents: Category[]; hasChildren: boolean };
+type Props = { category?: Category; parents: { id: string; label: string }[] };
 
-export function CategoryForm({ category, parents, hasChildren }: Props) {
+export function CategoryForm({ category, parents }: Props) {
   const [state, formAction, pending] = useActionState(saveCategory, null);
   const [preview, setPreview] = useState<string | null>(null);
   const errors = state?.fieldErrors ?? {};
@@ -34,23 +34,18 @@ export function CategoryForm({ category, parents, hasChildren }: Props) {
         label="Kategori induk"
         htmlFor="parentId"
         error={errors.parentId}
-        hint={
-          hasChildren
-            ? "Kategori ini punya sub-kategori, jadi harus tetap kategori utama."
-            : "Kosongkan untuk kategori utama (tampil di menu atas). Pilih induk untuk sub-kategori (tampil di dropdown)."
-        }
+        hint={`Kosongkan untuk kategori utama (tampil di menu atas). Pilih induk untuk sub-kategori, maksimal ${MAX_CATEGORY_DEPTH} level (contoh: Sports › Tennis › Overgrip).`}
       >
         <select
           id="parentId"
           name="parentId"
           defaultValue={category?.parentId ?? ""}
-          disabled={hasChildren}
           className={inputClass}
         >
           <option value="">— Kategori utama —</option>
           {parents.map((p) => (
             <option key={p.id} value={p.id}>
-              {p.name}
+              {p.label}
             </option>
           ))}
         </select>

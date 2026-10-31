@@ -166,7 +166,7 @@ export function Header({ nav }: { nav: NavItem[] }) {
               )}
               <div className="flex flex-1 gap-14 pl-2">
                 {active.columns.map((col) => (
-                  <div key={col.title}>
+                  <div key={col.href}>
                     <Link
                       href={col.href}
                       className="flex items-center gap-3 text-[13px] font-bold uppercase tracking-[0.14em] hover:underline"
@@ -302,7 +302,7 @@ export function Header({ nav }: { nav: NavItem[] }) {
                           ))}
                         </ul>
                         {item.columns.map((col) => (
-                          <div key={col.title}>
+                          <div key={col.href}>
                             <Link href={col.href} className="flex items-center gap-3 text-[12px] font-bold uppercase tracking-[0.14em]">
                               {col.title}
                               <ArrowRight />

@@ -4,7 +4,7 @@ import { ProductImage } from "@/components/ProductImage";
 import { requireAdmin } from "@/lib/auth";
 import { buildCategoryTree } from "@/lib/catalog";
 import { readDatabase } from "@/lib/db";
-import type { Category } from "@/lib/types";
+import type { CategoryNode } from "@/lib/types";
 import { deleteCategory } from "../../actions";
 import { DeleteButton } from "../../_components/DeleteButton";
 import { Notice, PageHeader, primaryButton } from "../../_components/ui";
@@ -18,17 +18,17 @@ export default async function CategoriesPage({ searchParams }: PageProps<"/admin
   const tree = buildCategoryTree(db.categories);
   const productCount = (id: string) => db.products.filter((p) => p.categoryId === id).length;
 
-  const row = (c: Category, isChild: boolean) => (
+  const row = (c: CategoryNode, depth: number) => (
     <tr key={c.id} className="border-t border-line">
       <td className="py-3 pl-5 pr-3">
-        <div className={`flex items-center gap-3 ${isChild ? "pl-8" : ""}`}>
-          {!isChild && (
+        <div className="flex items-center gap-3" style={{ paddingLeft: depth * 32 }}>
+          {depth === 0 && (
             <span className="relative size-10 shrink-0 overflow-hidden bg-tile">
               <ProductImage src={c.image} alt="" sizes="40px" />
             </span>
           )}
-          <span className={isChild ? "" : "font-semibold"}>
-            {isChild && <span className="mr-2 text-muted">↳</span>}
+          <span className={depth === 0 ? "font-semibold" : ""}>
+            {depth > 0 && <span className="mr-2 text-muted">↳</span>}
             {c.name}
           </span>
         </div>
@@ -46,6 +46,10 @@ export default async function CategoriesPage({ searchParams }: PageProps<"/admin
       </td>
     </tr>
   );
+  const rows = (c: CategoryNode, depth: number): React.ReactNode[] => [
+    row(c, depth),
+    ...c.children.flatMap((child) => rows(child, depth + 1)),
+  ];
 
   return (
     <>
@@ -79,7 +83,7 @@ export default async function CategoriesPage({ searchParams }: PageProps<"/admin
                 </td>
               </tr>
             )}
-            {tree.flatMap((c) => [row(c, false), ...c.children.map((child) => row(child, true))])}
+            {tree.flatMap((c) => rows(c, 0))}
           </tbody>
         </table>
       </div>

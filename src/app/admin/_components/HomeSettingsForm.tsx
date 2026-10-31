@@ -19,6 +19,18 @@ export function HomeSettingsForm({ featured, tree }: Props) {
     </label>
   );
 
+  const subtree = (nodes: CategoryNode[]): React.ReactNode =>
+    nodes.length > 0 && (
+      <div className="space-y-2 pl-6">
+        {nodes.map((c) => (
+          <div key={c.id} className="space-y-2">
+            {checkbox(c.id, c.name, false)}
+            {subtree(c.children)}
+          </div>
+        ))}
+      </div>
+    );
+
   return (
     <form
       // Submitting manually keeps the entered values if the server returns an error.
@@ -49,13 +61,13 @@ export function HomeSettingsForm({ featured, tree }: Props) {
       <Field
         label="Kategori produk"
         error={errors.categoryIds}
-        hint="Memilih kategori utama ikut menampilkan semua sub-kategorinya. Jika tidak ada yang dipilih (atau kategorinya kosong), tampil 8 produk terbaru."
+        hint="Memilih sebuah kategori ikut menampilkan semua sub-kategorinya. Jika tidak ada yang dipilih (atau kategorinya kosong), tampil 8 produk terbaru."
       >
         <div className="grid gap-6 rounded-2xl border border-line p-5 sm:grid-cols-2">
           {tree.map((dept) => (
             <div key={dept.id} className="space-y-2">
               {checkbox(dept.id, dept.name, true)}
-              <div className="space-y-2 pl-6">{dept.children.map((c) => <div key={c.id}>{checkbox(c.id, c.name, false)}</div>)}</div>
+              {subtree(dept.children)}
             </div>
           ))}
         </div>

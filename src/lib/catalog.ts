@@ -36,29 +36,42 @@ function byOrder(a: { order: number; name: string }, b: { order: number; name: s
   return a.order - b.order || a.name.localeCompare(b.name);
 }
 
-export function buildCategoryTree(categories: Category[]): CategoryNode[] {
+export function buildCategoryTree(categories: Category[], parentId: string | null = null): CategoryNode[] {
   return categories
-    .filter((c) => c.parentId === null)
+    .filter((c) => c.parentId === parentId)
     .sort(byOrder)
-    .map((c) => ({
-      ...c,
-      children: categories.filter((child) => child.parentId === c.id).sort(byOrder),
-    }));
+    .map((c) => ({ ...c, children: buildCategoryTree(categories, c.id) }));
 }
 
-/** The category plus all its sub-category ids. */
+/** The category plus all its descendant ids. */
 export function categoryScope(categories: Category[], categoryId: string): Set<string> {
-  return new Set([
-    categoryId,
-    ...categories.filter((c) => c.parentId === categoryId).map((c) => c.id),
-  ]);
+  const scope = new Set([categoryId]);
+  for (const id of scope) {
+    for (const c of categories) if (c.parentId === id) scope.add(c.id);
+  }
+  return scope;
+}
+
+/** Ancestors from the department down to the category itself. */
+export function categoryPath(categories: Category[], categoryId: string): Category[] {
+  const path: Category[] = [];
+  let category = categories.find((c) => c.id === categoryId);
+  while (category && !path.includes(category)) {
+    path.unshift(category);
+    category = categories.find((c) => c.id === category!.parentId);
+  }
+  return path;
 }
 
 /** Top-level category ("department") a category belongs to. */
 export function departmentOf(categories: Category[], categoryId: string): Category | undefined {
-  const category = categories.find((c) => c.id === categoryId);
-  if (!category?.parentId) return category;
-  return categories.find((c) => c.id === category.parentId);
+  return categoryPath(categories, categoryId)[0];
+}
+
+/** Number of levels below a category: 0 for a leaf, 1 if it only has children, and so on. */
+export function subtreeHeight(categories: Category[], categoryId: string): number {
+  const children = categories.filter((c) => c.parentId === categoryId);
+  return children.length ? 1 + Math.max(...children.map((c) => subtreeHeight(categories, c.id))) : 0;
 }
 
 export type SortKey = "featured" | "newest" | "price-asc" | "price-desc";
