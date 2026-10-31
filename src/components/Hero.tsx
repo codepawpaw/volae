@@ -24,8 +24,8 @@ export function Hero({ title, links, slides }: Props) {
       <div className="px-5 py-8 sm:px-8 lg:w-[280px] lg:shrink-0 lg:px-14 lg:py-10 xl:w-[332px]">
         <h1 className="text-[34px] font-bold leading-none tracking-[-0.03em] lg:text-[38px]">{title}</h1>
         <ul className="no-scrollbar mt-6 flex gap-6 overflow-x-auto whitespace-nowrap text-[17px] lg:mt-10 lg:block lg:space-y-[18px] lg:whitespace-normal">
-          {links.map((l) => (
-            <li key={l.href}>
+          {links.map((l, i) => (
+            <li key={i}>
               <Link href={l.href} className="hover:underline">
                 {l.label}
               </Link>

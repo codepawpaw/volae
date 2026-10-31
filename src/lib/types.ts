@@ -74,7 +74,12 @@ export type Order = {
 /** The product carousel right under the homepage hero. Products come from these categories (and their sub-categories). */
 export type HomeFeatured = { title: string; categoryIds: string[] };
 
-export type Settings = { homeFeatured: HomeFeatured };
+/** Categories shown in the header menu, in tree order. `null` shows every top-level category. */
+export type HeaderSettings = { categoryIds: string[] | null };
+
+export type LinkSetting = { label: string; href: string };
+
+export type Settings = { homeFeatured: HomeFeatured; header: HeaderSettings; heroLinks: LinkSetting[] };
 
 export type Database = {
   brands: Brand[];

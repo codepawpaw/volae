@@ -1,5 +1,6 @@
 import "server-only";
 import { cacheLife, cacheTag } from "next/cache";
+import { site } from "@/config/site";
 import { listBrands, listCategories, listProducts, readSettings } from "./db";
 import type { Brand, Category, CategoryNode, Product, Settings } from "./types";
 
@@ -22,6 +23,8 @@ export async function getCatalog(): Promise<Catalog> {
 
 const DEFAULT_SETTINGS: Settings = {
   homeFeatured: { title: "Cold snaps, rainy days, windy runs. There’s outerwear for it all.", categoryIds: [] },
+  header: { categoryIds: null },
+  heroLinks: site.heroLinks.map((l) => ({ ...l })),
 };
 
 /** Storefront settings edited in Admin → Beranda. Shares the catalog cache tag. */
@@ -41,6 +44,18 @@ export function buildCategoryTree(categories: Category[], parentId: string | nul
     .filter((c) => c.parentId === parentId)
     .sort(byOrder)
     .map((c) => ({ ...c, children: buildCategoryTree(categories, c.id) }));
+}
+
+/** Every node of the tree, parents before their children. */
+export function flattenTree(tree: CategoryNode[]): CategoryNode[] {
+  return tree.flatMap((c) => [c, ...flattenTree(c.children)]);
+}
+
+/** The categories picked for the header menu (Admin → Beranda), or every department by default. */
+export function headerCategories(tree: CategoryNode[], categoryIds: string[] | null): CategoryNode[] {
+  if (!categoryIds) return tree;
+  const picked = new Set(categoryIds);
+  return flattenTree(tree).filter((c) => picked.has(c.id));
 }
 
 /** The category plus all its descendant ids. */

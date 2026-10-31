@@ -37,7 +37,7 @@ export const site = {
     },
   ],
 
-  // Link di samping banner beranda.
+  // Link default di samping banner beranda. Bisa diubah di Admin → Beranda.
   heroLinks: [
     { label: "Sports", href: "/sports" },
     { label: "All Women's", href: "/c/women" },

@@ -9,7 +9,7 @@ import { buildCategoryTree, categoryScope, getCatalog, getSettings } from "@/lib
 import type { Product } from "@/lib/types";
 
 export default async function HomePage() {
-  const [{ brands, categories, products }, { homeFeatured }] = await Promise.all([getCatalog(), getSettings()]);
+  const [{ brands, categories, products }, { homeFeatured, heroLinks }] = await Promise.all([getCatalog(), getSettings()]);
   const brandMap = cardBrands(brands);
   const departments = buildCategoryTree(categories);
   const featuredIds = new Set(homeFeatured.categoryIds.flatMap((id) => [...categoryScope(categories, id)]));
@@ -21,7 +21,7 @@ export default async function HomePage() {
 
   return (
     <>
-      <Hero title={site.brandName} links={site.heroLinks} slides={site.heroSlides} />
+      <Hero title={site.brandName} links={heroLinks} slides={site.heroSlides} />
 
       <ProductSection
         title={homeFeatured.title}

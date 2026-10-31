@@ -5,12 +5,13 @@ import { Header } from "@/components/Header";
 import { StoreProvider } from "@/components/StoreProvider";
 import { UtilityBar } from "@/components/UtilityBar";
 import { site } from "@/config/site";
-import { buildCategoryTree, getCatalog } from "@/lib/catalog";
+import { buildCategoryTree, getCatalog, getSettings, headerCategories } from "@/lib/catalog";
 import { buildNav } from "@/lib/nav";
 
 export default async function ShopLayout({ children }: { children: React.ReactNode }) {
-  const { categories, brands } = await getCatalog();
-  const nav = buildNav(buildCategoryTree(categories), brands);
+  const [{ categories, brands }, { header }] = await Promise.all([getCatalog(), getSettings()]);
+  const tree = buildCategoryTree(categories);
+  const nav = buildNav(headerCategories(tree, header.categoryIds), tree, brands);
   return (
     <StoreProvider>
       <AnnouncementBar items={site.announcements} />

@@ -18,15 +18,18 @@ const PERSON_DEPARTMENTS: Record<string, string> = { women: "Women's", men: "Men
 const links = (node: CategoryNode | undefined): NavLink[] =>
   node?.children.map((c) => ({ label: c.name, href: `/c/${c.slug}` })) ?? [];
 
-/** The header menu: one entry per top-level category, then Brands and What's New. */
-export function buildNav(tree: CategoryNode[], brands: Brand[]): NavItem[] {
+/** The header menu: one entry per picked category, then Brands and What's New. `tree` is the full category tree. */
+export function buildNav(items: CategoryNode[], tree: CategoryNode[], brands: Brand[]): NavItem[] {
   const accessories = tree.find((c) => c.slug === "accessories");
   const bags = tree.find((c) => c.slug === "bags");
 
-  const departments = tree.map((dept): NavItem => {
+  const departments = items.map((dept): NavItem => {
     const possessive = PERSON_DEPARTMENTS[dept.slug];
     // Three-level departments (Sports › Tennis › Overgrip) get one column per group.
-    const columns: NavColumn[] = dept.children.some((c) => c.children.length > 0)
+    // A category without children is a plain link (no dropdown).
+    const columns: NavColumn[] = dept.children.length === 0
+      ? []
+      : dept.children.some((c) => c.children.length > 0)
       ? dept.children.map((group) => ({ title: group.name, href: `/c/${group.slug}`, links: links(group) }))
       : [
           {

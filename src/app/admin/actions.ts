@@ -429,16 +429,34 @@ export async function deleteProduct(_prev: FormState, formData: FormData): Promi
 
 // ---------- Homepage ----------
 
-const homeFeaturedSchema = z.object({
+const homeSchema = z.object({
   title: z.string().min(1, "Judul wajib diisi.").max(140, "Maksimal 140 karakter."),
   categoryIds: z.array(z.string().max(100)).max(50),
+  headerCategoryIds: z.array(z.string().max(100)).max(20, "Maksimal 20 kategori di header."),
+  heroLinks: z
+    .array(
+      z.object({
+        label: z.string().min(1, "Setiap link butuh label.").max(40, "Label maksimal 40 karakter."),
+        href: z
+          .string()
+          .max(300)
+          .regex(/^(\/|https?:\/\/)/, "Link harus diawali / (halaman toko) atau https://."),
+      }),
+    )
+    .max(10, "Maksimal 10 link."),
 });
 
 export async function saveHomeSettings(_prev: FormState, formData: FormData): Promise<FormState> {
   await requireAdmin();
-  const parsed = homeFeaturedSchema.safeParse({
+  const hrefs = formData.getAll("heroHref").map(String);
+  const parsed = homeSchema.safeParse({
     title: text(formData, "title"),
     categoryIds: formData.getAll("categoryIds").map(String),
+    headerCategoryIds: formData.getAll("headerCategoryIds").map(String),
+    heroLinks: formData
+      .getAll("heroLabel")
+      .map((label, i) => ({ label: String(label).trim(), href: (hrefs[i] ?? "").trim() }))
+      .filter((l) => l.label || l.href),
   });
   if (!parsed.success) return { fieldErrors: fieldErrors(parsed.error) };
   const data = parsed.data;
@@ -446,8 +464,10 @@ export async function saveHomeSettings(_prev: FormState, formData: FormData): Pr
   await transaction(async (tx) => {
     // Drop ids of categories that were deleted while the form was open.
     const categories = await listCategories(tx);
-    const categoryIds = data.categoryIds.filter((id) => categories.some((c) => c.id === id));
-    await saveSetting(tx, "homeFeatured", { title: data.title, categoryIds });
+    const exists = (id: string) => categories.some((c) => c.id === id);
+    await saveSetting(tx, "homeFeatured", { title: data.title, categoryIds: data.categoryIds.filter(exists) });
+    await saveSetting(tx, "header", { categoryIds: data.headerCategoryIds.filter(exists) });
+    await saveSetting(tx, "heroLinks", data.heroLinks);
   });
   updateTag(CATALOG_TAG);
   redirect("/admin/home?saved=1");
