@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { requireAdmin } from "@/lib/auth";
-import { buildCategoryTree, getSettings } from "@/lib/catalog";
+import { bestsellerProducts, buildCategoryTree, getSettings } from "@/lib/catalog";
 import { readDatabase } from "@/lib/db";
 import { categoryOptions } from "../products/category-options";
 import { HomeSettingsForm } from "../../_components/HomeSettingsForm";
@@ -22,6 +22,7 @@ export default async function HomeSettingsPage({ searchParams }: PageProps<"/adm
   // getSettings fills in the defaults for settings that were never saved.
   const [db, settings] = await Promise.all([readDatabase(), getSettings()]);
   const slugs = new Map(db.categories.map((c) => [c.id, c.slug]));
+  const brandNames = new Map(db.brands.map((b) => [b.id, b.name]));
   const linkOptions = [
     ...categoryOptions(db.categories).map((o) => ({ label: o.label, href: `/c/${slugs.get(o.id)}` })),
     ...PAGE_LINKS,
@@ -32,9 +33,16 @@ export default async function HomeSettingsPage({ searchParams }: PageProps<"/adm
       {params.saved && <Notice>Pengaturan beranda berhasil disimpan.</Notice>}
       <HomeSettingsForm
         featured={db.settings.homeFeatured}
-        headerIds={settings.header.categoryIds}
-        heroLinks={settings.heroLinks}
+        settings={settings}
         tree={buildCategoryTree(db.categories)}
+        brands={db.brands}
+        products={db.products.map((p) => ({
+          id: p.id,
+          name: p.name,
+          brand: brandNames.get(p.brandId) ?? "",
+          isActive: p.isActive,
+        }))}
+        bestsellerIds={bestsellerProducts(db.products, settings.bestsellers.productIds).map((p) => p.id)}
         linkOptions={linkOptions}
       />
     </>

@@ -1,22 +1,22 @@
 import { ListingView } from "@/components/ListingView";
-import { categoryScope, getCatalog, parseFilters } from "@/lib/catalog";
-import type { Product } from "@/lib/types";
+import { bestsellerProducts, categoryScope, getCatalog, getSettings, parseFilters } from "@/lib/catalog";
+import type { Product, Settings } from "@/lib/types";
 
 export const COLLECTIONS = {
   "whats-new": {
     title: "What's New",
     description: "The latest drops from every brand we carry.",
-    match: (p: Product) => p.isNew,
+    select: (products: Product[]) => products.filter((p) => p.isNew),
   },
   bestsellers: {
     title: "Bestsellers",
     description: "The styles everyone keeps coming back to.",
-    match: (p: Product) => p.badge === "Bestseller",
+    select: (products: Product[], settings: Settings) => bestsellerProducts(products, settings.bestsellers.productIds),
   },
   sale: {
     title: "We Made Too Much",
     description: "Limited sizes and colours at lower prices. Get them before they're gone.",
-    match: (p: Product) => p.salePrice !== null,
+    select: (products: Product[]) => products.filter((p) => p.salePrice !== null),
   },
 } as const;
 
@@ -27,13 +27,13 @@ type Props = {
 
 /** Shared listing for What's New, Bestsellers and Sale. `?dept=men` narrows to one department. */
 export async function CollectionListing({ kind, searchParams }: Props) {
-  const { title, description, match } = COLLECTIONS[kind];
+  const { title, description, select } = COLLECTIONS[kind];
   const params = await searchParams;
-  const catalog = await getCatalog();
+  const [catalog, settings] = await Promise.all([getCatalog(), getSettings()]);
   const departments = catalog.categories.filter((c) => c.parentId === null);
   const dept = departments.find((d) => d.slug === params.dept);
   const scope = dept ? categoryScope(catalog.categories, dept.id) : null;
-  const products = catalog.products.filter((p) => match(p) && (!scope || scope.has(p.categoryId)));
+  const products = select(catalog.products, settings).filter((p) => !scope || scope.has(p.categoryId));
   const prefix = dept?.slug === "women" ? "Women's " : dept?.slug === "men" ? "Men's " : dept ? `${dept.name} ` : "";
 
   return (

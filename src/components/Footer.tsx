@@ -1,50 +1,25 @@
 import Link from "next/link";
 import { site } from "@/config/site";
 import type { NavItem } from "@/lib/nav";
-import { whatsappLink } from "@/lib/whatsapp";
+import type { FooterColumn } from "@/lib/types";
 import { LogoMark } from "./Logo";
 import { Newsletter } from "./Newsletter";
 
-export function Footer({ nav }: { nav: NavItem[] }) {
-  const help = whatsappLink(`Halo ${site.brandName}, saya butuh bantuan.`);
-  const columns = [
-    { title: "Shop", links: nav.map((n) => ({ label: n.label, href: n.href })) },
-    {
-      title: "Help",
-      links: [
-        { label: "Chat on WhatsApp", href: help },
-        { label: "Track Order & Return", href: help },
-        { label: "Shopping Bag", href: "/cart" },
-        { label: "Wish List", href: "/wishlist" },
-      ],
-    },
-    {
-      title: "About Us",
-      links: [
-        { label: "Our Brands", href: "/brands" },
-        { label: "What's New", href: "/whats-new" },
-        { label: "Bestsellers", href: "/bestsellers" },
-        { label: "We Made Too Much", href: "/sale" },
-      ],
-    },
-    {
-      title: "Follow Us",
-      links: Object.entries(site.social).map(([name, href]) => ({
-        label: name === "tiktok" ? "TikTok" : name === "youtube" ? "YouTube" : name[0].toUpperCase() + name.slice(1),
-        href,
-      })),
-    },
-  ];
+export function Footer({ nav, columns: extra }: { nav: NavItem[]; columns: FooterColumn[] }) {
+  const columns = [{ title: "Shop", links: nav.map((n) => ({ label: n.label, href: n.href })) }, ...extra];
 
   return (
     <footer className="mt-auto bg-page">
-      <div className="mx-auto grid max-w-[1920px] gap-10 px-5 py-14 sm:px-8 lg:grid-cols-[repeat(4,1fr)_1.6fr] lg:px-14">
-        {columns.map((col) => (
-          <div key={col.title}>
+      <div
+        className="mx-auto grid max-w-[1920px] gap-10 px-5 py-14 sm:px-8 lg:grid-cols-[repeat(var(--columns),1fr)_1.6fr] lg:px-14"
+        style={{ "--columns": columns.length } as React.CSSProperties}
+      >
+        {columns.map((col, i) => (
+          <div key={i}>
             <h2 className="text-[13px] font-bold uppercase tracking-[0.14em]">{col.title}</h2>
             <ul className="mt-4 space-y-3 text-[15px]">
-              {col.links.map((l) => (
-                <li key={l.label}>
+              {col.links.map((l, i) => (
+                <li key={i}>
                   {l.href.startsWith("http") ? (
                     <a href={l.href} target="_blank" rel="noopener noreferrer" className="hover:underline">
                       {l.label}

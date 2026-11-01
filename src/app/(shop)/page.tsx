@@ -5,18 +5,24 @@ import { Hero } from "@/components/Hero";
 import { ProductCarousel } from "@/components/ProductCarousel";
 import { site } from "@/config/site";
 import { cardBrands } from "@/lib/card-brands";
-import { buildCategoryTree, categoryScope, getCatalog, getSettings } from "@/lib/catalog";
+import { bestsellerProducts, buildCategoryTree, categoryScope, getCatalog, getSettings, pickedCategories } from "@/lib/catalog";
 import type { Product } from "@/lib/types";
 
 export default async function HomePage() {
-  const [{ brands, categories, products }, { homeFeatured, heroLinks }] = await Promise.all([getCatalog(), getSettings()]);
+  const [{ brands, categories, products }, settings] = await Promise.all([getCatalog(), getSettings()]);
+  const { homeFeatured, heroLinks, shopByCategory, shopByBrand, homeWhatsNew } = settings;
   const brandMap = cardBrands(brands);
-  const departments = buildCategoryTree(categories);
-  const featuredIds = new Set(homeFeatured.categoryIds.flatMap((id) => [...categoryScope(categories, id)]));
+  const shopCategories = pickedCategories(buildCategoryTree(categories), shopByCategory.categoryIds);
+  const brandIds = shopByBrand.brandIds && new Set(shopByBrand.brandIds);
+  const shopBrands = brandIds ? brands.filter((b) => brandIds.has(b.id)) : brands;
+  // Picking a category also includes its sub-categories.
+  const inCategories = (ids: string[]) => new Set(ids.flatMap((id) => [...categoryScope(categories, id)]));
+  const featuredIds = inCategories(homeFeatured.categoryIds);
+  const whatsNewIds = inCategories(homeWhatsNew.categoryIds);
 
   const featured = products.filter((p) => featuredIds.has(p.categoryId));
-  const bestsellers = products.filter((p) => p.badge === "Bestseller");
-  const whatsNew = products.filter((p) => p.isNew);
+  const bestsellers = bestsellerProducts(products, settings.bestsellers.productIds);
+  const whatsNew = products.filter((p) => p.isNew && (whatsNewIds.size === 0 || whatsNewIds.has(p.categoryId)));
   const sale = products.filter((p) => p.salePrice !== null);
 
   return (
@@ -29,62 +35,66 @@ export default async function HomePage() {
         brands={brandMap}
       />
 
-      <section className="px-5 py-14 sm:px-8 lg:px-14 lg:py-20">
-        <h2 className="text-center text-[26px] font-bold tracking-[-0.01em] lg:text-[34px]">Shop by category</h2>
-        <div className="mt-10 grid grid-cols-2 gap-5 lg:grid-cols-4">
-          {departments.map((d) => (
-            <Link key={d.id} href={`/c/${d.slug}`} className="group">
-              <span className="relative block aspect-[5/6] overflow-hidden bg-tile">
-                {d.image && (
-                  <Image
-                    src={d.image}
-                    alt=""
-                    fill
-                    sizes="(min-width: 1024px) 25vw, 50vw"
-                    className="object-cover transition-transform duration-500 group-hover:scale-[1.03]"
-                  />
-                )}
-              </span>
-              <span className="mt-4 flex items-center gap-3 text-[13px] font-bold uppercase tracking-[0.14em] group-hover:underline">
-                Shop {d.name}
-                <ArrowRight />
-              </span>
-            </Link>
-          ))}
-        </div>
-      </section>
-
-      {bestsellers.length > 0 && <ProductSection title="Bestsellers you keep coming back to." products={bestsellers} brands={brandMap} />}
-
-      <section className="px-5 py-14 sm:px-8 lg:px-14 lg:py-20">
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <h2 className="text-[26px] font-bold tracking-[-0.01em] lg:text-[34px]">Shop by brand</h2>
-          <Link href="/brands" className="flex items-center gap-3 text-[13px] font-bold uppercase tracking-[0.14em] hover:underline">
-            All Brands <ArrowRight />
-          </Link>
-        </div>
-        <div className="no-scrollbar mt-8 flex gap-5 overflow-x-auto">
-          {brands.map((b) => (
-            <Link key={b.id} href={`/brands/${b.slug}`} className="group w-[70%] shrink-0 sm:w-[40%] lg:w-[calc((100%-80px)/5)]">
-              <span className="relative block aspect-square overflow-hidden bg-tile">
-                {b.image && (
-                  <Image
-                    src={b.image}
-                    alt=""
-                    fill
-                    sizes="(min-width: 1024px) 20vw, 70vw"
-                    className="object-cover transition-transform duration-500 group-hover:scale-[1.03]"
-                  />
-                )}
-                <span className="absolute inset-0 bg-black/25" />
-                <span className="absolute inset-x-0 bottom-5 text-center text-[24px] font-bold tracking-[-0.02em] text-white">
-                  {b.name}
+      {shopCategories.length > 0 && (
+        <section className="px-5 py-14 sm:px-8 lg:px-14 lg:py-20">
+          <h2 className="text-center text-[26px] font-bold tracking-[-0.01em] lg:text-[34px]">{shopByCategory.title}</h2>
+          <div className="mt-10 grid grid-cols-2 gap-5 lg:grid-cols-4">
+            {shopCategories.map((d) => (
+              <Link key={d.id} href={`/c/${d.slug}`} className="group">
+                <span className="relative block aspect-[5/6] overflow-hidden bg-tile">
+                  {d.image && (
+                    <Image
+                      src={d.image}
+                      alt=""
+                      fill
+                      sizes="(min-width: 1024px) 25vw, 50vw"
+                      className="object-cover transition-transform duration-500 group-hover:scale-[1.03]"
+                    />
+                  )}
                 </span>
-              </span>
+                <span className="mt-4 flex items-center gap-3 text-[13px] font-bold uppercase tracking-[0.14em] group-hover:underline">
+                  Shop {d.name}
+                  <ArrowRight />
+                </span>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {bestsellers.length > 0 && <ProductSection title={settings.bestsellers.title} products={bestsellers} brands={brandMap} />}
+
+      {shopBrands.length > 0 && (
+        <section className="px-5 py-14 sm:px-8 lg:px-14 lg:py-20">
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <h2 className="text-[26px] font-bold tracking-[-0.01em] lg:text-[34px]">{shopByBrand.title}</h2>
+            <Link href="/brands" className="flex items-center gap-3 text-[13px] font-bold uppercase tracking-[0.14em] hover:underline">
+              All Brands <ArrowRight />
             </Link>
-          ))}
-        </div>
-      </section>
+          </div>
+          <div className="no-scrollbar mt-8 flex gap-5 overflow-x-auto">
+            {shopBrands.map((b) => (
+              <Link key={b.id} href={`/brands/${b.slug}`} className="group w-[70%] shrink-0 sm:w-[40%] lg:w-[calc((100%-80px)/5)]">
+                <span className="relative block aspect-square overflow-hidden bg-tile">
+                  {b.image && (
+                    <Image
+                      src={b.image}
+                      alt=""
+                      fill
+                      sizes="(min-width: 1024px) 20vw, 70vw"
+                      className="object-cover transition-transform duration-500 group-hover:scale-[1.03]"
+                    />
+                  )}
+                  <span className="absolute inset-0 bg-black/25" />
+                  <span className="absolute inset-x-0 bottom-5 text-center text-[24px] font-bold tracking-[-0.02em] text-white">
+                    {b.name}
+                  </span>
+                </span>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
 
       {sale.length > 0 && (
         <section className="relative mx-5 overflow-hidden bg-black sm:mx-8 lg:mx-14">
@@ -108,7 +118,7 @@ export default async function HomePage() {
         </section>
       )}
 
-      {whatsNew.length > 0 && <ProductSection title="Just dropped: what’s new." products={whatsNew} brands={brandMap} />}
+      {whatsNew.length > 0 && <ProductSection title={homeWhatsNew.title} products={whatsNew} brands={brandMap} />}
     </>
   );
 }

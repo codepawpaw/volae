@@ -19,7 +19,7 @@ import {
   upsertProduct,
 } from "@/lib/db";
 import { slugify } from "@/lib/format";
-import { MAX_CATEGORY_DEPTH, ORDER_STATUSES, type Brand, type Category, type Product } from "@/lib/types";
+import { MAX_CATEGORY_DEPTH, MAX_FOOTER_COLUMNS, ORDER_STATUSES, type Brand, type Category, type Product } from "@/lib/types";
 import { deleteImages, filesFrom, saveImage, validateImage } from "@/lib/uploads";
 
 export type FormState = { error?: string; fieldErrors?: Record<string, string> } | null;
@@ -429,45 +429,90 @@ export async function deleteProduct(_prev: FormState, formData: FormData): Promi
 
 // ---------- Homepage ----------
 
+const linkSchema = z.object({
+  label: z.string().min(1, "Setiap link butuh label.").max(40, "Label maksimal 40 karakter."),
+  href: z
+    .string()
+    .max(300)
+    .regex(/^(\/|https?:\/\/)/, "Link harus diawali / (halaman toko) atau https://."),
+});
+
+/** Label/URL rows posted by LinkListEditor, paired up by position. */
+function linkRows(formData: FormData, labelName: string, hrefName: string) {
+  const hrefs = formData.getAll(hrefName).map(String);
+  return formData.getAll(labelName).map((label, i) => ({ label: String(label).trim(), href: (hrefs[i] ?? "").trim() }));
+}
+
 const homeSchema = z.object({
   title: z.string().min(1, "Judul wajib diisi.").max(140, "Maksimal 140 karakter."),
   categoryIds: z.array(z.string().max(100)).max(50),
   headerCategoryIds: z.array(z.string().max(100)).max(20, "Maksimal 20 kategori di header."),
-  heroLinks: z
+  shopTitle: z.string().min(1, "Judul wajib diisi.").max(140, "Maksimal 140 karakter."),
+  shopCategoryIds: z.array(z.string().max(100)).max(24, "Maksimal 24 kategori."),
+  brandTitle: z.string().min(1, "Judul wajib diisi.").max(140, "Maksimal 140 karakter."),
+  brandIds: z.array(z.string().max(100)).max(100),
+  whatsNewTitle: z.string().min(1, "Judul wajib diisi.").max(140, "Maksimal 140 karakter."),
+  whatsNewCategoryIds: z.array(z.string().max(100)).max(50),
+  bestsellersTitle: z.string().min(1, "Judul wajib diisi.").max(140, "Maksimal 140 karakter."),
+  bestsellerIds: z.array(z.string().max(100)).max(200, "Maksimal 200 produk."),
+  footerColumns: z
     .array(
       z.object({
-        label: z.string().min(1, "Setiap link butuh label.").max(40, "Label maksimal 40 karakter."),
-        href: z
-          .string()
-          .max(300)
-          .regex(/^(\/|https?:\/\/)/, "Link harus diawali / (halaman toko) atau https://."),
+        title: z.string().min(1, "Setiap kolom butuh judul.").max(40, "Judul kolom maksimal 40 karakter."),
+        links: z.array(linkSchema).max(10, "Maksimal 10 link per kolom."),
       }),
     )
-    .max(10, "Maksimal 10 link."),
+    .max(MAX_FOOTER_COLUMNS, `Maksimal ${MAX_FOOTER_COLUMNS} kolom.`),
+  heroLinks: z.array(linkSchema).max(10, "Maksimal 10 link."),
 });
 
 export async function saveHomeSettings(_prev: FormState, formData: FormData): Promise<FormState> {
   await requireAdmin();
-  const hrefs = formData.getAll("heroHref").map(String);
+  const footerLinks = linkRows(formData, "footerLabel", "footerHref");
+  const footerLinkColumns = formData.getAll("footerLinkColumn").map(Number);
   const parsed = homeSchema.safeParse({
     title: text(formData, "title"),
     categoryIds: formData.getAll("categoryIds").map(String),
     headerCategoryIds: formData.getAll("headerCategoryIds").map(String),
-    heroLinks: formData
-      .getAll("heroLabel")
-      .map((label, i) => ({ label: String(label).trim(), href: (hrefs[i] ?? "").trim() }))
-      .filter((l) => l.label || l.href),
+    shopTitle: text(formData, "shopTitle"),
+    shopCategoryIds: formData.getAll("shopCategoryIds").map(String),
+    brandTitle: text(formData, "brandTitle"),
+    brandIds: formData.getAll("brandIds").map(String),
+    whatsNewTitle: text(formData, "whatsNewTitle"),
+    whatsNewCategoryIds: formData.getAll("whatsNewCategoryIds").map(String),
+    heroLinks: linkRows(formData, "heroLabel", "heroHref").filter((l) => l.label || l.href),
+    bestsellersTitle: text(formData, "bestsellersTitle"),
+    bestsellerIds: formData.getAll("bestsellerIds").map(String),
+    footerColumns: formData.getAll("footerTitle").map((title, column) => ({
+      title: String(title).trim(),
+      links: footerLinks.filter((l, i) => footerLinkColumns[i] === column && (l.label || l.href)),
+    })),
   });
   if (!parsed.success) return { fieldErrors: fieldErrors(parsed.error) };
   const data = parsed.data;
 
   await transaction(async (tx) => {
-    // Drop ids of categories that were deleted while the form was open.
+    // Drop ids of categories, brands and products that were deleted while the form was open.
     const categories = await listCategories(tx);
+    const brands = await listBrands(tx);
+    const products = await listProducts(tx);
     const exists = (id: string) => categories.some((c) => c.id === id);
+    const brandExists = (id: string) => brands.some((b) => b.id === id);
+    const productExists = (id: string) => products.some((p) => p.id === id);
     await saveSetting(tx, "homeFeatured", { title: data.title, categoryIds: data.categoryIds.filter(exists) });
     await saveSetting(tx, "header", { categoryIds: data.headerCategoryIds.filter(exists) });
     await saveSetting(tx, "heroLinks", data.heroLinks);
+    await saveSetting(tx, "shopByCategory", { title: data.shopTitle, categoryIds: data.shopCategoryIds.filter(exists) });
+    await saveSetting(tx, "shopByBrand", { title: data.brandTitle, brandIds: data.brandIds.filter(brandExists) });
+    await saveSetting(tx, "homeWhatsNew", {
+      title: data.whatsNewTitle,
+      categoryIds: data.whatsNewCategoryIds.filter(exists),
+    });
+    await saveSetting(tx, "bestsellers", {
+      title: data.bestsellersTitle,
+      productIds: data.bestsellerIds.filter(productExists),
+    });
+    await saveSetting(tx, "footerColumns", data.footerColumns);
   });
   updateTag(CATALOG_TAG);
   redirect("/admin/home?saved=1");

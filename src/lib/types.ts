@@ -79,7 +79,33 @@ export type HeaderSettings = { categoryIds: string[] | null };
 
 export type LinkSetting = { label: string; href: string };
 
-export type Settings = { homeFeatured: HomeFeatured; header: HeaderSettings; heroLinks: LinkSetting[] };
+/** The "Shop by category" tiles on the homepage, in tree order. `null` shows every top-level category. */
+export type ShopByCategory = { title: string; categoryIds: string[] | null };
+
+/** The "Shop by brand" carousel on the homepage, in brand order. `null` shows every brand. */
+export type ShopByBrand = { title: string; brandIds: string[] | null };
+
+/** The "What's new" product carousel on the homepage. Empty `categoryIds` shows every new product. */
+export type HomeWhatsNew = { title: string; categoryIds: string[] };
+
+/** Products on the Bestsellers page and homepage carousel. `null` (never saved) uses products badged "Bestseller". */
+export type BestsellerSettings = { title: string; productIds: string[] | null };
+
+export type FooterColumn = { title: string; links: LinkSetting[] };
+
+export const MAX_FOOTER_COLUMNS = 4;
+
+export type Settings = {
+  homeFeatured: HomeFeatured;
+  header: HeaderSettings;
+  heroLinks: LinkSetting[];
+  shopByCategory: ShopByCategory;
+  shopByBrand: ShopByBrand;
+  homeWhatsNew: HomeWhatsNew;
+  bestsellers: BestsellerSettings;
+  /** Footer link columns after the automatic Shop column. */
+  footerColumns: FooterColumn[];
+};
 
 export type Database = {
   brands: Brand[];

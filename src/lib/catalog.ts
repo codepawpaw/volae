@@ -2,6 +2,7 @@ import "server-only";
 import { cacheLife, cacheTag } from "next/cache";
 import { site } from "@/config/site";
 import { listBrands, listCategories, listProducts, readSettings } from "./db";
+import { whatsappLink } from "./whatsapp";
 import type { Brand, Category, CategoryNode, Product, Settings } from "./types";
 
 export const CATALOG_TAG = "catalog";
@@ -25,7 +26,43 @@ const DEFAULT_SETTINGS: Settings = {
   homeFeatured: { title: "Cold snaps, rainy days, windy runs. There’s outerwear for it all.", categoryIds: [] },
   header: { categoryIds: null },
   heroLinks: site.heroLinks.map((l) => ({ ...l })),
+  shopByCategory: { title: "Shop by category", categoryIds: null },
+  shopByBrand: { title: "Shop by brand", brandIds: null },
+  homeWhatsNew: { title: "Just dropped: what’s new.", categoryIds: [] },
+  bestsellers: { title: "Bestsellers you keep coming back to.", productIds: null },
+  footerColumns: defaultFooterColumns(),
 };
+
+function defaultFooterColumns(): Settings["footerColumns"] {
+  const help = whatsappLink(`Halo ${site.brandName}, saya butuh bantuan.`);
+  return [
+    {
+      title: "Help",
+      links: [
+        { label: "Chat on WhatsApp", href: help },
+        { label: "Track Order & Return", href: help },
+        { label: "Shopping Bag", href: "/cart" },
+        { label: "Wish List", href: "/wishlist" },
+      ],
+    },
+    {
+      title: "About Us",
+      links: [
+        { label: "Our Brands", href: "/brands" },
+        { label: "What's New", href: "/whats-new" },
+        { label: "Bestsellers", href: "/bestsellers" },
+        { label: "We Made Too Much", href: "/sale" },
+      ],
+    },
+    {
+      title: "Follow Us",
+      links: Object.entries(site.social).map(([name, href]) => ({
+        label: name === "tiktok" ? "TikTok" : name === "youtube" ? "YouTube" : name[0].toUpperCase() + name.slice(1),
+        href,
+      })),
+    },
+  ];
+}
 
 /** Storefront settings edited in Admin → Beranda. Shares the catalog cache tag. */
 export async function getSettings(): Promise<Settings> {
@@ -51,11 +88,18 @@ export function flattenTree(tree: CategoryNode[]): CategoryNode[] {
   return tree.flatMap((c) => [c, ...flattenTree(c.children)]);
 }
 
-/** The categories picked for the header menu (Admin → Beranda), or every department by default. */
-export function headerCategories(tree: CategoryNode[], categoryIds: string[] | null): CategoryNode[] {
+/** The categories picked in Admin → Beranda (header menu, Shop by category), or every department by default. */
+export function pickedCategories(tree: CategoryNode[], categoryIds: string[] | null): CategoryNode[] {
   if (!categoryIds) return tree;
   const picked = new Set(categoryIds);
   return flattenTree(tree).filter((c) => picked.has(c.id));
+}
+
+/** The Bestsellers products: picked in Admin → Beranda, or those badged "Bestseller" until that was saved. */
+export function bestsellerProducts(products: Product[], productIds: string[] | null): Product[] {
+  if (!productIds) return products.filter((p) => p.badge === "Bestseller");
+  const picked = new Set(productIds);
+  return products.filter((p) => picked.has(p.id));
 }
 
 /** The category plus all its descendant ids. */
