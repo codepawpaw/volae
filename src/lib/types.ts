@@ -49,6 +49,20 @@ export type Subscriber = { email: string; createdAt: string };
 export const ORDER_STATUSES = ["new", "confirmed", "paid", "shipped", "completed", "cancelled"] as const;
 export type OrderStatus = (typeof ORDER_STATUSES)[number];
 
+export const PAYMENT_STATUSES = ["unpaid", "pending", "paid", "failed", "expired", "cancelled", "refunded"] as const;
+export type PaymentStatus = (typeof PAYMENT_STATUSES)[number];
+
+/** Online payment through Midtrans. */
+export type OrderPayment = {
+  status: PaymentStatus;
+  /** Midtrans payment_type, e.g. bank_transfer, gopay, qris, credit_card. */
+  type: string | null;
+  /** Snap payment page; usable until expiresAt. */
+  redirectUrl: string | null;
+  expiresAt: string | null;
+  paidAt: string | null;
+};
+
 export type OrderLine = {
   /** null once the product has been deleted; the rest of the line is a snapshot. */
   productId: string | null;
@@ -63,10 +77,11 @@ export type OrderLine = {
 export type Order = {
   id: string;
   number: string;
-  customer: { name: string; phone: string; address: string; note: string };
+  customer: { name: string; phone: string; email: string; address: string; note: string };
   lines: OrderLine[];
   total: number;
   status: OrderStatus;
+  payment: OrderPayment;
   createdAt: string;
   updatedAt: string;
 };

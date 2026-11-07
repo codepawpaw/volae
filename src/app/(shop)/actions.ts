@@ -3,9 +3,9 @@
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { getCatalog } from "@/lib/catalog";
-import { addSubscriber, countOrdersWithPrefix, insertOrder, transaction } from "@/lib/db";
+import { addSubscriber, countOrdersWithPrefix, insertOrder, setOrderPaymentLink, transaction } from "@/lib/db";
+import { createSnapTransaction } from "@/lib/midtrans";
 import type { Order } from "@/lib/types";
-import { orderMessage, whatsappLink } from "@/lib/whatsapp";
 
 export type SubscribeState = { ok: boolean; message: string } | null;
 
@@ -54,7 +54,14 @@ const checkoutSchema = z.object({
       .string()
       .trim()
       .regex(/^\+?[0-9\s-]{8,20}$/, "Please enter a valid phone number."),
-    address: z.string().trim().max(500),
+    // Optional; Midtrans emails payment instructions and receipts here.
+    email: z
+      .string()
+      .trim()
+      .toLowerCase()
+      .max(254)
+      .refine((v) => v === "" || z.email().safeParse(v).success, "Please enter a valid email address."),
+    address: z.string().trim().min(1, "Please enter your shipping address.").max(500),
     note: z.string().trim().max(500),
   }),
   lines: z
@@ -74,8 +81,8 @@ export type CheckoutInput = z.input<typeof checkoutSchema>;
 export type CheckoutResult = { ok: true; url: string; number: string } | { ok: false; error: string };
 
 /**
- * Saves the order to the database using current catalogue prices and returns the
- * WhatsApp link that sends it to the shop.
+ * Saves the order using current catalogue prices, opens a Midtrans Snap transaction for it and
+ * returns the Midtrans payment page to send the buyer to.
  */
 export async function placeOrder(input: CheckoutInput): Promise<CheckoutResult> {
   const parsed = checkoutSchema.safeParse(input);
@@ -115,6 +122,7 @@ export async function placeOrder(input: CheckoutInput): Promise<CheckoutResult> 
       lines: orderLines,
       total: orderLines.reduce((sum, l) => sum + l.unitPrice * l.qty, 0),
       status: "new",
+      payment: { status: "unpaid", type: null, redirectUrl: null, expiresAt: null, paidAt: null },
       createdAt: now.toISOString(),
       updatedAt: now.toISOString(),
     };
@@ -122,5 +130,12 @@ export async function placeOrder(input: CheckoutInput): Promise<CheckoutResult> 
     return created;
   });
 
-  return { ok: true, url: whatsappLink(orderMessage(order)), number: order.number };
+  try {
+    const snap = await createSnapTransaction(order);
+    await setOrderPaymentLink(order.id, snap.redirectUrl, snap.expiresAt);
+    return { ok: true, url: snap.redirectUrl, number: order.number };
+  } catch (error) {
+    console.error(`[midtrans] could not start payment for ${order.number}`, error);
+    return { ok: false, error: "We could not start the payment. Please try again in a moment." };
+  }
 }

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState, useTransition } from "react";
-import { MessageCircle } from "lucide-react";
+import { Lock } from "lucide-react";
 import { ProductImage } from "@/components/ProductImage";
 import { useStore } from "@/components/StoreProvider";
 import { MAX_QTY, itemKey } from "@/lib/cart-store";
@@ -12,13 +12,13 @@ import { placeOrder, resolveCart, type CartProductInfo } from "../actions";
 const fieldClass = "h-[48px] w-full border border-line bg-white px-4 text-[15px] outline-none focus:border-black";
 
 export function CartView() {
-  const { items, count, setQty, remove, clear } = useStore();
+  const { items, count, setQty, remove } = useStore();
   // Server data, tagged with the product ids it was fetched for.
   const [resolved, setResolved] = useState<{ ids: string; map: Map<string, CartProductInfo> } | null>(null);
   const [loadError, setLoadError] = useState(false);
   const [checkingOut, setCheckingOut] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [placed, setPlaced] = useState<{ number: string; url: string } | null>(null);
+  const [redirecting, setRedirecting] = useState(false);
   const [pending, startTransition] = useTransition();
   const ids = useMemo(() => [...new Set(items.map((i) => i.productId))].sort().join(","), [items]);
 
@@ -36,30 +36,6 @@ export function CartView() {
       cancelled = true;
     };
   }, [ids]);
-
-  if (placed) {
-    return (
-      <div className="mx-auto max-w-[560px] bg-white px-6 py-14 text-center sm:px-12">
-        <h1 className="text-[28px] font-semibold">Thank you!</h1>
-        <p className="mt-3 text-[16px] leading-relaxed text-muted">
-          Your order <span className="font-semibold text-ink">{placed.number}</span> has been saved. Send it to us on WhatsApp so we
-          can confirm stock, shipping and payment.
-        </p>
-        <a
-          href={placed.url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="mx-auto mt-8 flex h-[56px] max-w-[340px] items-center justify-center gap-2 bg-brand text-[13px] font-bold uppercase tracking-[0.14em] text-white hover:bg-brand-dark"
-        >
-          <MessageCircle className="size-5" strokeWidth={1.6} />
-          Send via WhatsApp
-        </a>
-        <Link href="/" className="mt-5 inline-block text-[15px] underline underline-offset-4">
-          Continue Shopping
-        </Link>
-      </div>
-    );
-  }
 
   if (items.length === 0) {
     return (
@@ -98,6 +74,7 @@ export function CartView() {
         customer: {
           name: String(formData.get("name") ?? ""),
           phone: String(formData.get("phone") ?? ""),
+          email: String(formData.get("email") ?? ""),
           address: String(formData.get("address") ?? ""),
           note: String(formData.get("note") ?? ""),
         },
@@ -107,8 +84,8 @@ export function CartView() {
         setError(result.error);
         return;
       }
-      clear();
-      setPlaced({ number: result.number, url: result.url });
+      // The bag is emptied on the success page, so it survives a failed or abandoned payment.
+      setRedirecting(true);
       window.location.assign(result.url);
     });
   };
@@ -203,8 +180,8 @@ export function CartView() {
             onClick={() => setCheckingOut(true)}
             className="mt-6 flex h-[56px] w-full items-center justify-center gap-2 bg-brand text-[13px] font-bold uppercase tracking-[0.14em] text-white hover:bg-brand-dark disabled:opacity-40"
           >
-            <MessageCircle className="size-5" strokeWidth={1.6} />
-            Checkout via WhatsApp
+            <Lock className="size-5" strokeWidth={1.6} />
+            Checkout
           </button>
         ) : (
           <form action={submit} className="mt-6 space-y-3">
@@ -220,11 +197,21 @@ export function CartView() {
               autoComplete="tel"
               className={fieldClass}
             />
+            <input
+              name="email"
+              type="email"
+              maxLength={254}
+              placeholder="Email for receipt (optional)"
+              aria-label="Email"
+              autoComplete="email"
+              className={fieldClass}
+            />
             <textarea
               name="address"
+              required
               rows={3}
               maxLength={500}
-              placeholder="Shipping address (optional)"
+              placeholder="Shipping address"
               aria-label="Shipping address"
               autoComplete="street-address"
               className={`${fieldClass} h-auto py-3`}
@@ -237,16 +224,16 @@ export function CartView() {
             )}
             <button
               type="submit"
-              disabled={pending || orderable.length === 0}
+              disabled={pending || redirecting || orderable.length === 0}
               className="flex h-[56px] w-full items-center justify-center gap-2 bg-brand text-[13px] font-bold uppercase tracking-[0.14em] text-white hover:bg-brand-dark disabled:opacity-40"
             >
-              <MessageCircle className="size-5" strokeWidth={1.6} />
-              {pending ? "Sending…" : "Send Order via WhatsApp"}
+              <Lock className="size-5" strokeWidth={1.6} />
+              {pending || redirecting ? "Opening payment…" : `Pay ${formatPrice(total)}`}
             </button>
           </form>
         )}
         <p className="mt-4 text-center text-[14px] leading-relaxed text-muted">
-          Your order is sent to our team on WhatsApp to confirm stock, shipping and payment.
+          Pay securely with Midtrans: bank transfer, QRIS, e-wallets or card.
         </p>
       </aside>
     </div>

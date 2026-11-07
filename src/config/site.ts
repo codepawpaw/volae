@@ -2,7 +2,7 @@
 export const site = {
   brandName: "volae",
   description: "Technical apparel, outerwear and accessories from Volae and the brands we love.",
-  // Nomor WhatsApp tujuan checkout, format internasional tanpa "+" (contoh: 6281234567890).
+  // Nomor WhatsApp toko (link bantuan pembayaran), format internasional tanpa "+" (contoh: 6281234567890).
   whatsappNumber: "6281234567890",
   email: "hello@volae.id",
   region: "Indonesia (IDR)",
@@ -11,7 +11,7 @@ export const site = {
   // Teks berganti di bar paling atas.
   announcements: [
     { text: "Fall 2026 Outerwear is here—explore the styles now.", href: "/c/women-coats-jackets" },
-    { text: "Free delivery on every order. Checkout easily via WhatsApp.", href: "/cart" },
+    { text: "Free delivery on every order. Pay securely with QRIS, e-wallet, bank transfer or card.", href: "/cart" },
     { text: "New brands just landed. Shop by brand.", href: "/brands" },
   ],
 

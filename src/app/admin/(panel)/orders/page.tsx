@@ -5,7 +5,7 @@ import { requireAdmin } from "@/lib/auth";
 import { readDatabase } from "@/lib/db";
 import { formatPrice } from "@/lib/format";
 import { ORDER_STATUSES, type OrderStatus } from "@/lib/types";
-import { STATUS_COLORS, STATUS_LABELS } from "../../_components/order-status";
+import { PAYMENT_COLORS, PAYMENT_LABELS, STATUS_COLORS, STATUS_LABELS, paymentTypeLabel } from "../../_components/order-status";
 import { StatusSelect } from "../../_components/StatusSelect";
 import { PageHeader } from "../../_components/ui";
 
@@ -29,8 +29,8 @@ export default async function OrdersPage({ searchParams }: PageProps<"/admin/ord
     <>
       <PageHeader title="Pesanan" />
       <p className="-mt-4 mb-6 max-w-2xl text-[14px] text-muted">
-        Setiap checkout via WhatsApp tersimpan di sini. Ubah status setelah pesanan dikonfirmasi atau
-        dibayar di WhatsApp.
+        Setiap checkout tersimpan di sini. Status pembayaran diperbarui otomatis oleh Midtrans; pesanan yang
+        lunas otomatis berstatus Dibayar. Ubah status berikutnya (Dikirim, Selesai) secara manual.
       </p>
 
       <div className="mb-6 flex flex-wrap gap-2 text-[14px]">
@@ -63,6 +63,10 @@ export default async function OrdersPage({ searchParams }: PageProps<"/admin/ord
                     <p className="text-[17px] font-semibold">{o.number}</p>
                     <span className={`rounded-full px-2.5 py-0.5 text-[12px] ${STATUS_COLORS[o.status]}`}>
                       {STATUS_LABELS[o.status]}
+                    </span>
+                    <span className={`rounded-full px-2.5 py-0.5 text-[12px] ${PAYMENT_COLORS[o.payment.status]}`}>
+                      {PAYMENT_LABELS[o.payment.status]}
+                      {paymentTypeLabel(o.payment.type) && ` · ${paymentTypeLabel(o.payment.type)}`}
                     </span>
                   </div>
                   <p className="mt-1 text-[13px] text-muted">
@@ -108,6 +112,7 @@ export default async function OrdersPage({ searchParams }: PageProps<"/admin/ord
                     <MessageCircle className="size-4" strokeWidth={1.6} />
                     {o.customer.phone}
                   </a>
+                  {o.customer.email && <p>{o.customer.email}</p>}
                   {o.customer.address && <p className="whitespace-pre-line">{o.customer.address}</p>}
                   {o.customer.note && <p className="text-muted">Catatan: {o.customer.note}</p>}
                 </div>

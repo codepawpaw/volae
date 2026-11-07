@@ -1,6 +1,6 @@
 import "server-only";
 import { Pool, types, type PoolClient } from "pg";
-import type { Brand, Category, Database, Order, OrderStatus, Product, Settings, Subscriber } from "./types";
+import type { Brand, Category, Database, Order, OrderStatus, PaymentStatus, Product, Settings, Subscriber } from "./types";
 
 // Postgres storage (Supabase). Schema lives in supabase/migrations.
 
@@ -88,22 +88,29 @@ export async function listSubscribers(db: Queryable = pool()): Promise<Subscribe
   return rows;
 }
 
-/** All orders with their lines, newest first. */
-export async function listOrders(db: Queryable = pool()): Promise<Order[]> {
-  const { rows } = await db.query<Order>(
-    `select o.id, o.number,
-       json_build_object('name', o.customer_name, 'phone', o.customer_phone, 'address', o.customer_address,
-         'note', o.customer_note) as customer,
+const ORDER_COLUMNS = `o.id, o.number,
+       json_build_object('name', o.customer_name, 'phone', o.customer_phone, 'email', o.customer_email,
+         'address', o.customer_address, 'note', o.customer_note) as customer,
        coalesce(
          (select json_agg(json_build_object('productId', i.product_id, 'name', i.name, 'brand', i.brand,
             'color', i.color, 'size', i.size, 'qty', i.qty, 'unitPrice', i.unit_price) order by i.position)
           from public.order_items i where i.order_id = o.id),
          '[]'
        ) as lines,
-       o.total, o.status, o.created_at as "createdAt", o.updated_at as "updatedAt"
-     from public.orders o order by o.created_at desc`,
-  );
+       o.total, o.status,
+       json_build_object('status', o.payment_status, 'type', o.payment_type, 'redirectUrl', o.payment_redirect_url,
+         'expiresAt', o.payment_expires_at, 'paidAt', o.paid_at) as payment,
+       o.created_at as "createdAt", o.updated_at as "updatedAt"`;
+
+/** All orders with their lines, newest first. */
+export async function listOrders(db: Queryable = pool()): Promise<Order[]> {
+  const { rows } = await db.query<Order>(`select ${ORDER_COLUMNS} from public.orders o order by o.created_at desc`);
   return rows;
+}
+
+export async function getOrderByNumber(number: string, db: Queryable = pool()): Promise<Order | null> {
+  const { rows } = await db.query<Order>(`select ${ORDER_COLUMNS} from public.orders o where o.number = $1`, [number]);
+  return rows[0] ?? null;
 }
 
 export async function readSettings(db: Queryable = pool()): Promise<Partial<Settings>> {
@@ -192,11 +199,11 @@ export async function countOrdersWithPrefix(tx: PoolClient, prefix: string): Pro
 
 export async function insertOrder(tx: PoolClient, o: Order) {
   await tx.query(
-    `insert into public.orders (id, number, customer_name, customer_phone, customer_address, customer_note, total,
-       status, created_at, updated_at)
-     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-    [o.id, o.number, o.customer.name, o.customer.phone, o.customer.address, o.customer.note, o.total, o.status,
-      o.createdAt, o.updatedAt],
+    `insert into public.orders (id, number, customer_name, customer_phone, customer_email, customer_address,
+       customer_note, total, status, payment_status, created_at, updated_at)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+    [o.id, o.number, o.customer.name, o.customer.phone, o.customer.email, o.customer.address, o.customer.note,
+      o.total, o.status, o.payment.status, o.createdAt, o.updatedAt],
   );
   for (const [position, l] of o.lines.entries()) {
     await tx.query(
@@ -211,4 +218,51 @@ export async function insertOrder(tx: PoolClient, o: Order) {
 export async function setOrderStatus(id: string, status: OrderStatus): Promise<boolean> {
   const { rowCount } = await pool().query(`update public.orders set status = $2 where id = $1`, [id, status]);
   return rowCount === 1;
+}
+
+/** Stores the Snap payment page for an order that is waiting for payment. */
+export async function setOrderPaymentLink(id: string, redirectUrl: string, expiresAt: string) {
+  await pool().query(
+    `update public.orders set payment_status = 'pending', payment_redirect_url = $2, payment_expires_at = $3,
+       payment_updated_at = now()
+     where id = $1 and payment_status = 'unpaid'`,
+    [id, redirectUrl, expiresAt],
+  );
+}
+
+/**
+ * Records the latest Midtrans status of an order and moves the order along:
+ * paid -> "paid" (from new/confirmed), expired/cancelled -> "cancelled" (only while still new).
+ * Later order statuses (shipped, completed) are never touched.
+ */
+export async function applyPayment(
+  number: string,
+  p: { status: PaymentStatus; type: string | null; transactionId: string | null },
+) {
+  await pool().query(
+    `update public.orders set
+       payment_status = $2,
+       payment_type = coalesce($3, payment_type),
+       payment_transaction_id = coalesce($4, payment_transaction_id),
+       payment_updated_at = now(),
+       paid_at = case when $2 = 'paid' then coalesce(paid_at, now()) else paid_at end,
+       status = case
+         when $2 = 'paid' and status in ('new', 'confirmed') then 'paid'::public.order_status
+         when $2 in ('expired', 'cancelled') and status = 'new' then 'cancelled'::public.order_status
+         else status end
+     where number = $1`,
+    [number, p.status, p.type, p.transactionId],
+  );
+}
+
+export async function logPaymentNotification(
+  kind: "payment" | "recurring" | "account_linking",
+  orderNumber: string | null,
+  verified: boolean,
+  payload: unknown,
+) {
+  await pool().query(
+    `insert into public.payment_notifications (kind, order_number, verified, payload) values ($1, $2, $3, $4)`,
+    [kind, orderNumber, verified, JSON.stringify(payload)],
+  );
 }

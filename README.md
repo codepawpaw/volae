@@ -1,7 +1,7 @@
 # volae — toko online multi-brand (Next.js)
 
 Storefront bergaya lululemon.com dengan panel admin untuk brand, kategori, produk, dan pesanan.
-Data disimpan sebagai file JSON (tanpa database cloud). Checkout diteruskan ke WhatsApp.
+Data disimpan di Supabase Postgres. Pembayaran lewat Midtrans Snap.
 
 ## Menjalankan
 
@@ -50,12 +50,26 @@ Untuk lokal, isi variabel di atas di `.env.local`.
 - Brand tampil di menu **Brands**, halaman `/brands` dan `/brands/[slug]`, di atas nama produk, serta sebagai filter di setiap listing.
 - Brand yang masih punya produk tidak bisa dihapus.
 
-## Checkout via WhatsApp
+## Pembayaran (Midtrans Snap)
 
-1. Pembeli mengisi bag lalu klik **Checkout via WhatsApp** dan mengisi nama, nomor WhatsApp, dan alamat.
-2. Server menghitung ulang harga dari katalog, menyimpan pesanan ke database dengan nomor seperti `VL261029001`.
-3. Pembeli diarahkan ke WhatsApp dengan pesan pesanan yang sudah terisi.
-4. Di **Admin → Pesanan** Anda bisa melihat detail, menghubungi pembeli, dan mengubah status (Baru → Dikonfirmasi → Dibayar → Dikirim → Selesai).
+1. Pembeli mengisi bag, klik **Checkout**, lalu mengisi nama, nomor WhatsApp, email (opsional) dan alamat.
+2. Server menghitung ulang harga, menyimpan pesanan (`VL261107001`), membuat transaksi Snap dengan nomor
+   pesanan sebagai `order_id`, lalu mengarahkan pembeli ke halaman pembayaran Midtrans (berlaku 24 jam).
+3. Setelah membayar, Midtrans mengarahkan ke `/finish-payment`, yang mengecek status ke API Midtrans lalu
+   meneruskan ke `/success-payment` (lunas / menunggu pembayaran) atau `/failed-payment`.
+4. Midtrans mengirim notifikasi ke `/api/midtrans/notification`. Signature diverifikasi, status diambil ulang
+   dari API Midtrans, lalu pesanan diperbarui: lunas → **Dibayar**, kedaluwarsa/dibatalkan → **Dibatalkan**.
+   Semua notifikasi tercatat di tabel `payment_notifications`.
+5. `/api/midtrans/recurring-notification` dan `/api/midtrans/account-linking` sudah aktif dan mencatat
+   notifikasi (toko belum memakai langganan atau GoPay account linking).
+
+Environment variable (lihat `.env`): `MIDTRANS_SERVER_KEY`, `MIDTRANS_IS_PRODUCTION`, `MIDTRANS_FINISH_URL`,
+`MIDTRANS_SUCCESS_URL`, `MIDTRANS_FAILED_URL`, `MIDTRANS_NOTIFICATION_URL` (dikirim sebagai
+`X-Override-Notification`), dan opsional `MIDTRANS_SIGNATURE_KEY` (server key lain yang juga diterima saat
+memverifikasi signature notifikasi).
+
+Di dashboard Midtrans (Settings → Payment): Finish URL `https://volae.id/finish-payment`, Unfinish & Error URL
+`https://www.volae.id/failed-payment`, dan ketiga notification URL di atas.
 
 ## Admin
 
