@@ -11,7 +11,7 @@ export const site = {
   // Teks berganti di bar paling atas.
   announcements: [
     { text: "Fall 2026 Outerwear is here—explore the styles now.", href: "/c/women-coats-jackets" },
-    { text: "Free delivery on every order. Pay securely with QRIS, e-wallet, bank transfer or card.", href: "/cart" },
+    { text: "Ship anywhere in Indonesia with JNE, SiCepat, J&T and more. Pay with QRIS, e-wallet, bank transfer or card.", href: "/cart" },
     { text: "New brands just landed. Shop by brand.", href: "/brands" },
   ],
 

@@ -49,6 +49,14 @@ function OrderSummary({ order }: { order: Order }) {
         <dt className="text-muted">Order</dt>
         <dd className="font-semibold">{order.number}</dd>
       </div>
+      {order.shipping.courierCode && (
+        <div className="flex justify-between gap-4">
+          <dt className="text-muted">Shipping</dt>
+          <dd className="text-right">
+            {order.shipping.courierName} {order.shipping.serviceName} · {formatPrice(order.shipping.cost)}
+          </dd>
+        </div>
+      )}
       <div className="flex justify-between gap-4">
         <dt className="text-muted">Total</dt>
         <dd className="font-semibold">{formatPrice(order.total)}</dd>
@@ -87,7 +95,7 @@ export function SuccessResult({ order }: { order: Order | null }) {
       <ClearCart />
       <p className="mt-3 text-[16px] leading-relaxed text-muted">
         {paid
-          ? "Thank you! Your payment is confirmed. We will prepare your order and contact you on WhatsApp about shipping."
+          ? `Thank you! Your payment is confirmed. We will pack your order and hand it to ${order.shipping.courierName || "the courier"}; you can follow it on the Track Order page.`
           : "Your order is saved. Please complete the payment with the instructions from Midtrans. After paying, refresh this page to see the confirmation."}
       </p>
       <OrderSummary order={order} />
@@ -97,6 +105,11 @@ export function SuccessResult({ order }: { order: Order | null }) {
         </a>
       )}
       <div className="flex flex-col items-center">
+        {paid && (
+          <Link href={`/track?order=${order.number}`} className={buttonClass}>
+            Track your order
+          </Link>
+        )}
         <Link href="/" className="mt-6 inline-block text-[15px] underline underline-offset-4">
           Continue Shopping
         </Link>

@@ -38,19 +38,41 @@ export async function createSnapTransaction(order: Order): Promise<SnapTransacti
   const { name, phone, email, address } = order.customer;
   const body = {
     transaction_details: { order_id: order.number, gross_amount: order.total },
-    // Midtrans requires the items to add up to gross_amount (shipping is free).
-    item_details: order.lines.map((l) => ({
-      id: clip(l.productId ?? "item", 50),
-      name: clip(`${l.name} ${l.color} ${l.size}`.trim(), 50),
-      brand: clip(l.brand, 50) || undefined,
-      price: l.unitPrice,
-      quantity: l.qty,
-    })),
+    // Midtrans requires the items to add up to gross_amount, so shipping is an item too.
+    item_details: [
+      ...order.lines.map((l) => ({
+        id: clip(l.productId ?? "item", 50),
+        name: clip(`${l.name} ${l.color} ${l.size}`.trim(), 50),
+        brand: clip(l.brand, 50) || undefined,
+        price: l.unitPrice,
+        quantity: l.qty,
+      })),
+      ...(order.shipping.cost > 0
+        ? [
+            {
+              id: "shipping",
+              name: clip(`Shipping ${order.shipping.courierName} ${order.shipping.serviceName}`.trim(), 50),
+              price: order.shipping.cost,
+              quantity: 1,
+            },
+          ]
+        : []),
+    ],
     customer_details: {
       first_name: clip(name, 255),
       phone,
       ...(email ? { email } : {}),
-      ...(address ? { shipping_address: { first_name: clip(name, 255), phone, address: clip(address, 200), country_code: "IDN" } } : {}),
+      ...(address
+        ? {
+            shipping_address: {
+              first_name: clip(name, 255),
+              phone,
+              address: clip(address, 200),
+              ...(order.shipping.postalCode ? { postal_code: order.shipping.postalCode } : {}),
+              country_code: "IDN",
+            },
+          }
+        : {}),
     },
     callbacks: process.env.MIDTRANS_FINISH_URL ? { finish: process.env.MIDTRANS_FINISH_URL } : undefined,
     expiry: { unit: "hour", duration: PAYMENT_WINDOW_HOURS },

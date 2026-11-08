@@ -8,6 +8,7 @@ import { checkCredentials, endSession, requireAdmin, startSession } from "@/lib/
 import { CATALOG_TAG, categoryPath, categoryScope, subtreeHeight } from "@/lib/catalog";
 import {
   deleteRow,
+  getOrderById,
   listBrands,
   listCategories,
   listProducts,
@@ -18,7 +19,10 @@ import {
   upsertCategory,
   upsertProduct,
 } from "@/lib/db";
+import { cancelShipment } from "@/lib/biteship";
+import { COURIER_OPTIONS } from "@/lib/couriers";
 import { slugify } from "@/lib/format";
+import { AREA_ID_PATTERN, ShipmentError, bookShipment, syncShipment } from "@/lib/shipping";
 import { MAX_CATEGORY_DEPTH, MAX_FOOTER_COLUMNS, ORDER_STATUSES, type Brand, type Category, type Product } from "@/lib/types";
 import { deleteImages, filesFrom, saveImage, validateImage } from "@/lib/uploads";
 
@@ -290,6 +294,11 @@ const productSchema = z
     categoryId: z.string().min(1, "Pilih kategori."),
     price: rupiah("Harga"),
     salePrice: z.union([z.literal("").transform(() => null), rupiah("Harga diskon")]),
+    weight: z.coerce
+      .number({ error: "Berat harus berupa angka." })
+      .int("Berat dalam gram, tanpa koma.")
+      .min(1, "Berat minimal 1 gram.")
+      .max(100_000, "Berat maksimal 100 kg."),
     description: z.string().max(5000, "Maksimal 5000 karakter."),
     features: z.array(z.string().max(120, "Setiap fitur maksimal 120 karakter.")).max(12, "Maksimal 12 fitur."),
     activities: z.array(z.string().max(40)).max(20),
@@ -336,6 +345,7 @@ export async function saveProduct(_prev: FormState, formData: FormData): Promise
     categoryId: text(formData, "categoryId"),
     price: text(formData, "price"),
     salePrice: text(formData, "salePrice"),
+    weight: text(formData, "weight").replace(/[.,\s]/g, "") || "500",
     description: text(formData, "description"),
     features: text(formData, "features")
       .split("\n")
@@ -527,4 +537,91 @@ export async function updateOrderStatus(formData: FormData) {
   if (!status.success) return;
   await setOrderStatus(id, status.data);
   refresh();
+}
+
+// ---------- Shipping (Biteship) ----------
+
+const shippingSchema = z.object({
+  contactName: z.string().min(1, "Nama pengirim wajib diisi.").max(100, "Maksimal 100 karakter."),
+  contactPhone: z.string().regex(/^\+?[0-9\s-]{8,20}$/, "Nomor telepon tidak valid."),
+  areaId: z.string().regex(AREA_ID_PATTERN, "Pilih kecamatan / kode pos dari daftar."),
+  areaName: z.string().min(1, "Pilih kecamatan / kode pos dari daftar.").max(200),
+  postalCode: z.string().regex(/^(\d{5})?$/, "Kode pos tidak valid."),
+  address: z.string().min(1, "Alamat wajib diisi.").max(500, "Maksimal 500 karakter."),
+  note: z.string().max(200, "Maksimal 200 karakter."),
+  couriers: z
+    .array(z.enum(COURIER_OPTIONS.map((c) => c.code) as [string, ...string[]]))
+    .min(1, "Pilih minimal satu kurir."),
+});
+
+export async function saveShippingSettings(_prev: FormState, formData: FormData): Promise<FormState> {
+  await requireAdmin();
+  const parsed = shippingSchema.safeParse({
+    contactName: text(formData, "contactName"),
+    contactPhone: text(formData, "contactPhone"),
+    areaId: text(formData, "areaId"),
+    areaName: text(formData, "areaName"),
+    postalCode: text(formData, "postalCode"),
+    address: text(formData, "address"),
+    note: text(formData, "note"),
+    couriers: formData.getAll("couriers").map(String),
+  });
+  if (!parsed.success) return { fieldErrors: fieldErrors(parsed.error) };
+  const { couriers, ...origin } = parsed.data;
+  await transaction((tx) => saveSetting(tx, "shipping", { origin, couriers }));
+  updateTag(CATALOG_TAG);
+  redirect("/admin/shipping?saved=1");
+}
+
+export type ShipmentState = { ok: boolean; message: string } | null;
+
+/** Turns Biteship / validation failures into a message for the order card. */
+function shipmentFailure(error: unknown, action: string): ShipmentState {
+  if (error instanceof ShipmentError) return { ok: false, message: error.message };
+  console.error(`[biteship] ${action} failed`, error);
+  const detail = error instanceof Error ? error.message.replace(/^Biteship \S+ \S+ failed /, "") : "";
+  return { ok: false, message: `Biteship menolak permintaan${detail ? `: ${detail}` : "."}` };
+}
+
+/** Books the courier pickup (a real, billed Biteship order with a live key). */
+export async function createShipmentAction(_prev: ShipmentState, formData: FormData): Promise<ShipmentState> {
+  await requireAdmin();
+  try {
+    const order = await bookShipment(text(formData, "id"));
+    refresh();
+    const resi = order.shipping.shipment.waybillId;
+    return { ok: true, message: resi ? `Pengiriman dibuat. Resi: ${resi}` : "Pengiriman dibuat. Resi menyusul dari kurir." };
+  } catch (error) {
+    refresh();
+    return shipmentFailure(error, "create shipment");
+  }
+}
+
+export async function refreshShipmentAction(_prev: ShipmentState, formData: FormData): Promise<ShipmentState> {
+  await requireAdmin();
+  const order = await getOrderById(text(formData, "id"));
+  if (!order?.shipping.shipment.id) return { ok: false, message: "Pesanan ini belum punya pengiriman." };
+  try {
+    await syncShipment(order);
+    refresh();
+    return { ok: true, message: "Status pengiriman diperbarui." };
+  } catch (error) {
+    return shipmentFailure(error, "refresh shipment");
+  }
+}
+
+export async function cancelShipmentAction(_prev: ShipmentState, formData: FormData): Promise<ShipmentState> {
+  await requireAdmin();
+  const order = await getOrderById(text(formData, "id"));
+  const id = order?.shipping.shipment.id;
+  if (!order || !id) return { ok: false, message: "Pesanan ini belum punya pengiriman." };
+  try {
+    await cancelShipment(id, text(formData, "reason").slice(0, 200) || "Dibatalkan oleh toko");
+    await syncShipment(order);
+    refresh();
+    return { ok: true, message: "Pengiriman dibatalkan." };
+  } catch (error) {
+    refresh();
+    return shipmentFailure(error, "cancel shipment");
+  }
 }

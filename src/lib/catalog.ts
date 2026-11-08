@@ -2,6 +2,7 @@ import "server-only";
 import { cacheLife, cacheTag } from "next/cache";
 import { site } from "@/config/site";
 import { listBrands, listCategories, listProducts, readSettings } from "./db";
+import { DEFAULT_COURIERS } from "./couriers";
 import { whatsappLink } from "./whatsapp";
 import type { Brand, Category, CategoryNode, Product, Settings } from "./types";
 
@@ -31,6 +32,7 @@ const DEFAULT_SETTINGS: Settings = {
   homeWhatsNew: { title: "Just dropped: what’s new.", categoryIds: [] },
   bestsellers: { title: "Bestsellers you keep coming back to.", productIds: null },
   footerColumns: defaultFooterColumns(),
+  shipping: { origin: null, couriers: DEFAULT_COURIERS },
 };
 
 function defaultFooterColumns(): Settings["footerColumns"] {
@@ -40,7 +42,8 @@ function defaultFooterColumns(): Settings["footerColumns"] {
       title: "Help",
       links: [
         { label: "Chat on WhatsApp", href: help },
-        { label: "Track Order & Return", href: help },
+        { label: "Track Order", href: "/track" },
+        { label: "Returns", href: help },
         { label: "Shopping Bag", href: "/cart" },
         { label: "Wish List", href: "/wishlist" },
       ],

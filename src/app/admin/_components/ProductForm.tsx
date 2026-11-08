@@ -101,6 +101,21 @@ export function ProductForm({ product, categories, brands }: Props) {
             className={inputClass}
           />
         </Field>
+        <Field
+          label="Berat kirim (gram)"
+          htmlFor="weight"
+          error={errors.weight}
+          hint="Berat per pcs termasuk kemasan, untuk ongkir. Contoh: 800"
+        >
+          <input
+            id="weight"
+            name="weight"
+            required
+            inputMode="numeric"
+            defaultValue={product?.weight ?? 500}
+            className={inputClass}
+          />
+        </Field>
       </div>
 
       <Field label="Deskripsi" htmlFor="description" error={errors.description}>

@@ -31,10 +31,10 @@ select email, "createdAt"
 from jsonb_to_recordset($json$[]$json$::jsonb) as x(email text, "createdAt" timestamptz)
 on conflict do nothing;
 
-insert into public.orders (id, number, customer_name, customer_phone, customer_address, customer_note, total, status,
-  created_at, updated_at)
+insert into public.orders (id, number, customer_name, customer_phone, customer_address, customer_note, subtotal, total,
+  status, created_at, updated_at)
 select id, number, customer->>'name', customer->>'phone', customer->>'address', coalesce(customer->>'note', ''),
-  total, status::public.order_status, "createdAt", "updatedAt"
+  total, total, status::public.order_status, "createdAt", "updatedAt"
 from jsonb_to_recordset($json$[]$json$::jsonb)
   as x(id text, number text, customer jsonb, total bigint, status text, "createdAt" timestamptz, "updatedAt" timestamptz)
 on conflict do nothing;

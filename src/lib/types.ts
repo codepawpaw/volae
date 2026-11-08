@@ -31,6 +31,8 @@ export type Product = {
   categoryId: string;
   price: number;
   salePrice: number | null;
+  /** Shipping weight in grams, used for courier rates. */
+  weight: number;
   description: string;
   features: string[];
   colors: ProductColor[];
@@ -72,6 +74,37 @@ export type OrderLine = {
   size: string;
   qty: number;
   unitPrice: number;
+  /** Unit weight in grams at checkout. */
+  weight: number;
+};
+
+/** Courier picked at checkout, plus the Biteship shipment (pickup order) once admin creates it. */
+export type OrderShipping = {
+  /** Biteship Maps area id; null for orders placed before shipping was added. */
+  areaId: string | null;
+  areaName: string;
+  postalCode: string;
+  /** Biteship courier_code and courier_service_code, e.g. "jne" / "reg". */
+  courierCode: string | null;
+  serviceCode: string | null;
+  courierName: string;
+  serviceName: string;
+  /** e.g. "2 - 3 days". */
+  duration: string;
+  cost: number;
+  /** Total weight in grams. */
+  weight: number;
+  shipment: {
+    id: string | null;
+    /** Raw Biteship status (confirmed, allocated, picking_up, picked, in_transit, delivered, cancelled, ...). */
+    status: string | null;
+    trackingId: string | null;
+    /** Resi from the courier. */
+    waybillId: string | null;
+    trackingUrl: string | null;
+    price: number | null;
+    updatedAt: string | null;
+  };
 };
 
 export type Order = {
@@ -79,9 +112,13 @@ export type Order = {
   number: string;
   customer: { name: string; phone: string; email: string; address: string; note: string };
   lines: OrderLine[];
+  /** Sum of the lines. */
+  subtotal: number;
+  /** subtotal + shipping.cost; what the buyer pays. */
   total: number;
   status: OrderStatus;
   payment: OrderPayment;
+  shipping: OrderShipping;
   createdAt: string;
   updatedAt: string;
 };
@@ -110,6 +147,26 @@ export type FooterColumn = { title: string; links: LinkSetting[] };
 
 export const MAX_FOOTER_COLUMNS = 4;
 
+/** Where couriers pick up parcels (Admin → Pengiriman). */
+export type ShippingOrigin = {
+  contactName: string;
+  contactPhone: string;
+  address: string;
+  /** Biteship Maps area id and its display name. */
+  areaId: string;
+  areaName: string;
+  postalCode: string;
+  /** For the courier, e.g. "Gudang belakang, bel 2x". */
+  note: string;
+};
+
+export type ShippingSettings = {
+  /** null until the store address is set; checkout cannot quote shipping without it. */
+  origin: ShippingOrigin | null;
+  /** Biteship courier codes offered at checkout, e.g. ["jne", "sicepat"]. */
+  couriers: string[];
+};
+
 export type Settings = {
   homeFeatured: HomeFeatured;
   header: HeaderSettings;
@@ -120,6 +177,7 @@ export type Settings = {
   bestsellers: BestsellerSettings;
   /** Footer link columns after the automatic Shop column. */
   footerColumns: FooterColumn[];
+  shipping: ShippingSettings;
 };
 
 export type Database = {

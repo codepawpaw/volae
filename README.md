@@ -1,7 +1,7 @@
 # volae — toko online multi-brand (Next.js)
 
 Storefront bergaya lululemon.com dengan panel admin untuk brand, kategori, produk, dan pesanan.
-Data disimpan di Supabase Postgres. Pembayaran lewat Midtrans Snap.
+Data disimpan di Supabase Postgres. Pembayaran lewat Midtrans Snap, pengiriman lewat Biteship.
 
 ## Menjalankan
 
@@ -52,8 +52,9 @@ Untuk lokal, isi variabel di atas di `.env.local`.
 
 ## Pembayaran (Midtrans Snap)
 
-1. Pembeli mengisi bag, klik **Checkout**, lalu mengisi nama, nomor WhatsApp, email (opsional) dan alamat.
-2. Server menghitung ulang harga, menyimpan pesanan (`VL261107001`), membuat transaksi Snap dengan nomor
+1. Pembeli mengisi bag, klik **Checkout**, lalu mengisi nama, nomor WhatsApp, email (opsional), kecamatan/kode pos,
+   alamat, dan memilih kurir (lihat **Pengiriman** di bawah).
+2. Server menghitung ulang harga dan ongkir, menyimpan pesanan (`VL261107001`), membuat transaksi Snap dengan nomor
    pesanan sebagai `order_id`, lalu mengarahkan pembeli ke halaman pembayaran Midtrans (berlaku 24 jam).
 3. Setelah membayar, Midtrans mengarahkan ke `/finish-payment`, yang mengecek status ke API Midtrans lalu
    meneruskan ke `/success-payment` (lunas / menunggu pembayaran) atau `/failed-payment`.
@@ -70,6 +71,30 @@ memverifikasi signature notifikasi).
 
 Di dashboard Midtrans (Settings → Payment): Finish URL `https://volae.id/finish-payment`, Unfinish & Error URL
 `https://www.volae.id/failed-payment`, dan ketiga notification URL di atas.
+
+## Pengiriman (Biteship)
+
+Dokumentasi API: https://biteship.com/id/docs/intro. Kode: `src/lib/biteship.ts` (klien API), `src/lib/shipping.ts`.
+
+1. **Admin → Pengiriman**: isi alamat pengirim (lokasi pickup, kecamatan dicari lewat Biteship Maps) dan kurir yang
+   ditawarkan di checkout. Tanpa alamat pengirim, checkout tidak bisa menghitung ongkir.
+2. **Admin → Produk**: isi *Berat kirim (gram)* per produk (default 500 g). Ongkir dihitung dari total berat.
+3. Di checkout, pembeli mengetik kecamatan / kode pos, memilih dari daftar, lalu memilih kurir dan layanan
+   (`POST /v1/rates/couriers`). Ongkir dihitung ulang di server saat pesanan dibuat. Kalau harganya berubah,
+   pembeli diminta mengecek ulang. Ongkir masuk ke total dan ke `item_details` Midtrans.
+4. Setelah pesanan **lunas**, klik **Buat pengiriman** di **Admin → Pesanan** untuk memesan pickup kurir
+   (`POST /v1/orders`, `reference_id` = nomor pesanan, jadi klik ganda tidak memesan dua kali). Dengan API key
+   `biteship_live.*` ini pickup sungguhan dan memotong saldo Biteship. Pengiriman bisa dibatalkan selama kurir
+   belum mengambil paket, lalu dibuat ulang.
+5. Biteship mengirim webhook ke `/api/biteship/webhook` (event `order.status`, `order.price`, `order.waybill_id`).
+   Status diambil ulang dari API Biteship, lalu pesanan diperbarui: paket diambil kurir → **Dikirim**,
+   terkirim → **Selesai**. Semua webhook tercatat di tabel `shipping_notifications`.
+6. Pembeli melacak paket di `/track` dengan nomor pesanan + nomor WhatsApp.
+
+Environment variable: `BITESHIP_API_KEY` (`biteship_test.*` untuk simulasi, `biteship_live.*` untuk produksi).
+
+Di dashboard Biteship: **Integrasi → Webhook → Tambah Webhook**, URL `https://volae.id/api/biteship/webhook`,
+centang ketiga event. Pastikan saldo cukup: Rates API menolak permintaan kalau saldo kosong.
 
 ## Admin
 

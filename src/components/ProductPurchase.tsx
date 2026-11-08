@@ -119,7 +119,7 @@ export function ProductPurchase({ product, brand, colorIndex, onColorChange, com
           <li className="flex gap-3">
             <Truck className="size-5 shrink-0" strokeWidth={1.4} />
             <span>
-              <span className="font-semibold">Free shipping</span> on every order.
+              <span className="font-semibold">Ships across Indonesia.</span> Choose your courier and see the cost at checkout.
             </span>
           </li>
           <li className="flex gap-3">

@@ -6,6 +6,7 @@ import { readDatabase } from "@/lib/db";
 import { formatPrice } from "@/lib/format";
 import { ORDER_STATUSES, type OrderStatus } from "@/lib/types";
 import { PAYMENT_COLORS, PAYMENT_LABELS, STATUS_COLORS, STATUS_LABELS, paymentTypeLabel } from "../../_components/order-status";
+import { ShipmentPanel } from "../../_components/ShipmentPanel";
 import { StatusSelect } from "../../_components/StatusSelect";
 import { PageHeader } from "../../_components/ui";
 
@@ -30,7 +31,8 @@ export default async function OrdersPage({ searchParams }: PageProps<"/admin/ord
       <PageHeader title="Pesanan" />
       <p className="-mt-4 mb-6 max-w-2xl text-[14px] text-muted">
         Setiap checkout tersimpan di sini. Status pembayaran diperbarui otomatis oleh Midtrans; pesanan yang
-        lunas otomatis berstatus Dibayar. Ubah status berikutnya (Dikirim, Selesai) secara manual.
+        lunas otomatis berstatus Dibayar. Klik Buat pengiriman untuk memesan pickup kurir lewat Biteship; pesanan
+        otomatis menjadi Dikirim saat paket diambil kurir dan Selesai saat terkirim.
       </p>
 
       <div className="mb-6 flex flex-wrap gap-2 text-[14px]">
@@ -93,6 +95,22 @@ export default async function OrdersPage({ searchParams }: PageProps<"/admin/ord
                         <td className="whitespace-nowrap py-2.5 pl-3 text-right">{formatPrice(l.qty * l.unitPrice)}</td>
                       </tr>
                     ))}
+                    {o.shipping.courierCode && (
+                      <>
+                        <tr className="border-t border-line text-muted">
+                          <td className="py-2.5" colSpan={2}>
+                            Subtotal
+                          </td>
+                          <td className="py-2.5 text-right">{formatPrice(o.subtotal)}</td>
+                        </tr>
+                        <tr className="text-muted">
+                          <td className="pb-2.5" colSpan={2}>
+                            Ongkir {o.shipping.courierName} {o.shipping.serviceName}
+                          </td>
+                          <td className="pb-2.5 text-right">{formatPrice(o.shipping.cost)}</td>
+                        </tr>
+                      </>
+                    )}
                     <tr className="border-t border-line font-semibold">
                       <td className="py-2.5" colSpan={2}>
                         Total
@@ -115,6 +133,9 @@ export default async function OrdersPage({ searchParams }: PageProps<"/admin/ord
                   {o.customer.email && <p>{o.customer.email}</p>}
                   {o.customer.address && <p className="whitespace-pre-line">{o.customer.address}</p>}
                   {o.customer.note && <p className="text-muted">Catatan: {o.customer.note}</p>}
+                  <div className="mt-3 border-t border-line pt-3">
+                    <ShipmentPanel order={o} />
+                  </div>
                 </div>
               </div>
             </li>

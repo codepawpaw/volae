@@ -3,11 +3,13 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { Lock } from "lucide-react";
+import { AreaSearch } from "@/components/AreaSearch";
 import { ProductImage } from "@/components/ProductImage";
 import { useStore } from "@/components/StoreProvider";
 import { MAX_QTY, itemKey } from "@/lib/cart-store";
 import { formatPrice } from "@/lib/format";
-import { placeOrder, resolveCart, type CartProductInfo } from "../actions";
+import type { Area } from "@/lib/biteship";
+import { getShippingRates, placeOrder, resolveCart, type CartProductInfo, type ShippingRatesResult } from "../actions";
 
 const fieldClass = "h-[48px] w-full border border-line bg-white px-4 text-[15px] outline-none focus:border-black";
 
@@ -20,6 +22,11 @@ export function CartView() {
   const [error, setError] = useState<string | null>(null);
   const [redirecting, setRedirecting] = useState(false);
   const [pending, startTransition] = useTransition();
+  const [area, setArea] = useState<Area | null>(null);
+  // Courier quote, tagged with the area + bag it was fetched for.
+  const [rates, setRates] = useState<{ key: string; result: ShippingRatesResult } | null>(null);
+  const [ratesNonce, setRatesNonce] = useState(0);
+  const [optionId, setOptionId] = useState<string | null>(null);
   const ids = useMemo(() => [...new Set(items.map((i) => i.productId))].sort().join(","), [items]);
 
   useEffect(() => {
@@ -37,6 +44,45 @@ export function CartView() {
     };
   }, [ids]);
 
+  const info = resolved?.ids === ids ? resolved.map : null;
+  const loading = !info && !loadError;
+  // Prices always come from the server; an item is unavailable when its product,
+  // colour or size no longer exists.
+  const lines = items.map((item) => {
+    const product = info?.get(item.productId);
+    const available =
+      !!product && product.sizes.includes(item.size) && (product.colors.length === 0 || product.colors.includes(item.color));
+    const unitPrice = product ? (product.salePrice ?? product.price) : item.unitPrice;
+    return { item, available, unitPrice };
+  });
+  const orderable = lines.filter((l) => l.available);
+  const hasUnavailable = !loading && orderable.length !== lines.length;
+  const subtotal = orderable.reduce((sum, l) => sum + l.unitPrice * l.item.qty, 0);
+  const orderLines = orderable.map(({ item }) => ({ productId: item.productId, color: item.color, size: item.size, qty: item.qty }));
+  const linesKey = JSON.stringify(orderLines);
+  const ratesKey = area && !loading && orderLines.length ? `${area.id}|${linesKey}|${ratesNonce}` : null;
+  const ratesResult = rates && rates.key === ratesKey ? rates.result : null;
+  const ratesLoading = !!ratesKey && !ratesResult;
+  const options = ratesResult?.ok ? ratesResult.options : [];
+  const option = options.find((o) => o.id === optionId) ?? null;
+  const total = subtotal + (option?.price ?? 0);
+
+  useEffect(() => {
+    if (!ratesKey || !area) return;
+    let cancelled = false;
+    getShippingRates(area.id, JSON.parse(linesKey))
+      .catch(() => ({ ok: false as const, error: "We could not load shipping options. Please try again." }))
+      .then((result) => {
+        if (cancelled) return;
+        setRates({ key: ratesKey, result });
+        // Keep the picked courier if it is still offered, otherwise preselect the cheapest.
+        if (result.ok) setOptionId((id) => (result.options.some((o) => o.id === id) ? id : (result.options[0]?.id ?? null)));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [ratesKey, area, linesKey]);
+
   if (items.length === 0) {
     return (
       <div className="mx-auto max-w-[560px] bg-white px-6 py-16 text-center">
@@ -52,23 +98,10 @@ export function CartView() {
     );
   }
 
-  const info = resolved?.ids === ids ? resolved.map : null;
-  const loading = !info && !loadError;
-  // Prices always come from the server; an item is unavailable when its product,
-  // colour or size no longer exists.
-  const lines = items.map((item) => {
-    const product = info?.get(item.productId);
-    const available =
-      !!product && product.sizes.includes(item.size) && (product.colors.length === 0 || product.colors.includes(item.color));
-    const unitPrice = product ? (product.salePrice ?? product.price) : item.unitPrice;
-    return { item, available, unitPrice };
-  });
-  const orderable = lines.filter((l) => l.available);
-  const hasUnavailable = !loading && orderable.length !== lines.length;
-  const total = orderable.reduce((sum, l) => sum + l.unitPrice * l.item.qty, 0);
-
   const submit = (formData: FormData) => {
     setError(null);
+    if (!area) return setError("Please choose your district or postal code from the list.");
+    if (!option) return setError("Please choose a shipping option.");
     startTransition(async () => {
       const result = await placeOrder({
         customer: {
@@ -78,10 +111,12 @@ export function CartView() {
           address: String(formData.get("address") ?? ""),
           note: String(formData.get("note") ?? ""),
         },
-        lines: orderable.map(({ item }) => ({ productId: item.productId, color: item.color, size: item.size, qty: item.qty })),
+        shipping: { areaId: area.id, areaName: area.name, postalCode: area.postalCode, optionId: option.id, price: option.price },
+        lines: orderLines,
       });
       if (!result.ok) {
         setError(result.error);
+        if (result.refreshRates) setRatesNonce((n) => n + 1);
         return;
       }
       // The bag is emptied on the success page, so it survives a failed or abandoned payment.
@@ -150,14 +185,16 @@ export function CartView() {
         <dl className="mt-6 space-y-3 text-[16px]">
           <div className="flex justify-between">
             <dt>Subtotal</dt>
-            <dd>{loading ? "…" : formatPrice(total)}</dd>
+            <dd>{loading ? "…" : formatPrice(subtotal)}</dd>
           </div>
-          <div className="flex justify-between">
+          <div className="flex justify-between gap-4">
             <dt>Shipping</dt>
-            <dd>FREE</dd>
+            <dd className="text-right">
+              {option ? formatPrice(option.price) : <span className="text-muted">{checkingOut ? "Choose below" : "Calculated at checkout"}</span>}
+            </dd>
           </div>
           <div className="flex justify-between border-t border-line pt-4 text-[18px] font-semibold">
-            <dt>Estimated Total</dt>
+            <dt>{option ? "Total" : "Estimated Total"}</dt>
             <dd>{loading ? "…" : formatPrice(total)}</dd>
           </div>
         </dl>
@@ -206,17 +243,70 @@ export function CartView() {
               autoComplete="email"
               className={fieldClass}
             />
+            <p className="pt-3 text-[15px] font-semibold">Shipping address</p>
+            <AreaSearch
+              value={area}
+              onChange={(next) => {
+                setArea(next);
+                setOptionId(null);
+              }}
+              label="District, city or postal code"
+              placeholder="District, city or postal code"
+              emptyText="No matching area. Try your district (kecamatan) or postal code."
+              inputClassName={fieldClass}
+            />
             <textarea
               name="address"
               required
               rows={3}
               maxLength={500}
-              placeholder="Shipping address"
-              aria-label="Shipping address"
+              placeholder="Street, house number, RT/RW, building"
+              aria-label="Street address"
               autoComplete="street-address"
               className={`${fieldClass} h-auto py-3`}
             />
-            <input name="note" maxLength={500} placeholder="Note (optional)" aria-label="Note" className={fieldClass} />
+            <input name="note" maxLength={500} placeholder="Note for the courier (optional)" aria-label="Note" className={fieldClass} />
+
+            <fieldset className="space-y-2 pt-3">
+              <legend className="pb-2 text-[15px] font-semibold">Shipping method</legend>
+              {!area ? (
+                <p className="text-[14px] text-muted">Choose your district to see couriers and prices.</p>
+              ) : ratesLoading ? (
+                <p className="text-[14px] text-muted">Checking couriers…</p>
+              ) : ratesResult && !ratesResult.ok ? (
+                <div className="text-[14px] text-brand">
+                  <p role="alert">{ratesResult.error}</p>
+                  <button type="button" onClick={() => setRatesNonce((n) => n + 1)} className="mt-1 underline underline-offset-4">
+                    Try again
+                  </button>
+                </div>
+              ) : (
+                options.map((o) => (
+                  <label
+                    key={o.id}
+                    className={`flex cursor-pointer items-start gap-3 border px-4 py-3 text-[15px] ${
+                      o.id === optionId ? "border-black" : "border-line"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="shippingOption"
+                      value={o.id}
+                      checked={o.id === optionId}
+                      onChange={() => setOptionId(o.id)}
+                      className="mt-1 size-4 accent-black"
+                    />
+                    <span className="min-w-0 flex-1">
+                      <span className="block font-semibold">
+                        {o.courierName} {o.serviceName}
+                      </span>
+                      {o.duration && <span className="block text-[13px] text-muted">Estimated {o.duration}</span>}
+                    </span>
+                    <span className="whitespace-nowrap">{formatPrice(o.price)}</span>
+                  </label>
+                ))
+              )}
+            </fieldset>
             {error && (
               <p role="alert" className="text-[14px] text-brand">
                 {error}
@@ -224,11 +314,11 @@ export function CartView() {
             )}
             <button
               type="submit"
-              disabled={pending || redirecting || orderable.length === 0}
+              disabled={pending || redirecting || orderable.length === 0 || !option}
               className="flex h-[56px] w-full items-center justify-center gap-2 bg-brand text-[13px] font-bold uppercase tracking-[0.14em] text-white hover:bg-brand-dark disabled:opacity-40"
             >
               <Lock className="size-5" strokeWidth={1.6} />
-              {pending || redirecting ? "Opening payment…" : `Pay ${formatPrice(total)}`}
+              {pending || redirecting ? "Opening payment…" : option ? `Pay ${formatPrice(total)}` : "Choose shipping"}
             </button>
           </form>
         )}

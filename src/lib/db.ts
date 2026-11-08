@@ -1,5 +1,6 @@
 import "server-only";
 import { Pool, types, type PoolClient } from "pg";
+import { RETRYABLE_SHIPMENT_STATUSES } from "./couriers";
 import type { Brand, Category, Database, Order, OrderStatus, PaymentStatus, Product, Settings, Subscriber } from "./types";
 
 // Postgres storage (Supabase). Schema lives in supabase/migrations.
@@ -74,7 +75,7 @@ export async function listCategories(db: Queryable = pool()): Promise<Category[]
 export async function listProducts(db: Queryable = pool()): Promise<Product[]> {
   const { rows } = await db.query<Product>(
     `select id, name, slug, brand_id as "brandId", category_id as "categoryId", price, sale_price as "salePrice",
-       description, features, colors, sizes, activities, images, badge, is_new as "isNew", is_active as "isActive",
+       weight, description, features, colors, sizes, activities, images, badge, is_new as "isNew", is_active as "isActive",
        created_at as "createdAt", updated_at as "updatedAt"
      from public.products order by created_at desc, id`,
   );
@@ -93,13 +94,23 @@ const ORDER_COLUMNS = `o.id, o.number,
          'address', o.customer_address, 'note', o.customer_note) as customer,
        coalesce(
          (select json_agg(json_build_object('productId', i.product_id, 'name', i.name, 'brand', i.brand,
-            'color', i.color, 'size', i.size, 'qty', i.qty, 'unitPrice', i.unit_price) order by i.position)
+            'color', i.color, 'size', i.size, 'qty', i.qty, 'unitPrice', i.unit_price, 'weight', i.weight)
+            order by i.position)
           from public.order_items i where i.order_id = o.id),
          '[]'
        ) as lines,
-       o.total, o.status,
+       o.subtotal, o.total, o.status,
        json_build_object('status', o.payment_status, 'type', o.payment_type, 'redirectUrl', o.payment_redirect_url,
          'expiresAt', o.payment_expires_at, 'paidAt', o.paid_at) as payment,
+       json_build_object('areaId', o.shipping_area_id, 'areaName', o.shipping_area_name,
+         'postalCode', o.shipping_postal_code, 'courierCode', o.shipping_courier_code,
+         'serviceCode', o.shipping_service_code, 'courierName', o.shipping_courier_name,
+         'serviceName', o.shipping_service_name, 'duration', o.shipping_duration, 'cost', o.shipping_cost,
+         'weight', o.shipping_weight,
+         'shipment', json_build_object('id', o.shipment_id, 'status', o.shipment_status,
+           'trackingId', o.shipment_tracking_id, 'waybillId', o.shipment_waybill_id,
+           'trackingUrl', o.shipment_tracking_url, 'price', o.shipment_price,
+           'updatedAt', o.shipment_updated_at)) as shipping,
        o.created_at as "createdAt", o.updated_at as "updatedAt"`;
 
 /** All orders with their lines, newest first. */
@@ -110,6 +121,18 @@ export async function listOrders(db: Queryable = pool()): Promise<Order[]> {
 
 export async function getOrderByNumber(number: string, db: Queryable = pool()): Promise<Order | null> {
   const { rows } = await db.query<Order>(`select ${ORDER_COLUMNS} from public.orders o where o.number = $1`, [number]);
+  return rows[0] ?? null;
+}
+
+export async function getOrderById(id: string, db: Queryable = pool()): Promise<Order | null> {
+  const { rows } = await db.query<Order>(`select ${ORDER_COLUMNS} from public.orders o where o.id = $1`, [id]);
+  return rows[0] ?? null;
+}
+
+export async function getOrderByShipmentId(shipmentId: string, db: Queryable = pool()): Promise<Order | null> {
+  const { rows } = await db.query<Order>(`select ${ORDER_COLUMNS} from public.orders o where o.shipment_id = $1`, [
+    shipmentId,
+  ]);
   return rows[0] ?? null;
 }
 
@@ -156,18 +179,18 @@ export async function upsertCategory(tx: PoolClient, c: Category) {
 export async function upsertProduct(tx: PoolClient, p: Product) {
   await tx.query(
     `insert into public.products (id, name, slug, brand_id, category_id, price, sale_price, description, features,
-       colors, sizes, activities, images, badge, is_new, is_active, created_at, updated_at)
-     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+       colors, sizes, activities, images, badge, is_new, is_active, created_at, updated_at, weight)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
      on conflict (id) do update set name = excluded.name, slug = excluded.slug, brand_id = excluded.brand_id,
        category_id = excluded.category_id, price = excluded.price, sale_price = excluded.sale_price,
        description = excluded.description, features = excluded.features, colors = excluded.colors,
        sizes = excluded.sizes, activities = excluded.activities, images = excluded.images, badge = excluded.badge,
-       is_new = excluded.is_new, is_active = excluded.is_active`,
+       is_new = excluded.is_new, is_active = excluded.is_active, weight = excluded.weight`,
     [
       p.id, p.name, p.slug, p.brandId, p.categoryId, p.price, p.salePrice, p.description, p.features,
       // jsonb: pass as JSON text, otherwise pg would send a Postgres array.
       JSON.stringify(p.colors),
-      p.sizes, p.activities, p.images, p.badge, p.isNew, p.isActive, p.createdAt, p.updatedAt,
+      p.sizes, p.activities, p.images, p.badge, p.isNew, p.isActive, p.createdAt, p.updatedAt, p.weight,
     ],
   );
 }
@@ -200,16 +223,20 @@ export async function countOrdersWithPrefix(tx: PoolClient, prefix: string): Pro
 export async function insertOrder(tx: PoolClient, o: Order) {
   await tx.query(
     `insert into public.orders (id, number, customer_name, customer_phone, customer_email, customer_address,
-       customer_note, total, status, payment_status, created_at, updated_at)
-     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+       customer_note, subtotal, total, status, payment_status, created_at, updated_at,
+       shipping_area_id, shipping_area_name, shipping_postal_code, shipping_courier_code, shipping_service_code,
+       shipping_courier_name, shipping_service_name, shipping_duration, shipping_cost, shipping_weight)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)`,
     [o.id, o.number, o.customer.name, o.customer.phone, o.customer.email, o.customer.address, o.customer.note,
-      o.total, o.status, o.payment.status, o.createdAt, o.updatedAt],
+      o.subtotal, o.total, o.status, o.payment.status, o.createdAt, o.updatedAt,
+      o.shipping.areaId, o.shipping.areaName, o.shipping.postalCode, o.shipping.courierCode, o.shipping.serviceCode,
+      o.shipping.courierName, o.shipping.serviceName, o.shipping.duration, o.shipping.cost, o.shipping.weight],
   );
   for (const [position, l] of o.lines.entries()) {
     await tx.query(
-      `insert into public.order_items (order_id, position, product_id, name, brand, color, size, qty, unit_price)
-       values ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-      [o.id, position, l.productId, l.name, l.brand, l.color, l.size, l.qty, l.unitPrice],
+      `insert into public.order_items (order_id, position, product_id, name, brand, color, size, qty, unit_price, weight)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+      [o.id, position, l.productId, l.name, l.brand, l.color, l.size, l.qty, l.unitPrice, l.weight],
     );
   }
 }
@@ -265,4 +292,68 @@ export async function logPaymentNotification(
     `insert into public.payment_notifications (kind, order_number, verified, payload) values ($1, $2, $3, $4)`,
     [kind, orderNumber, verified, JSON.stringify(payload)],
   );
+}
+
+// ---------- Shipping (Biteship) ----------
+
+/**
+ * Gets an order ready for a new shipment and returns its attempt number (0 for the first), or
+ * null when it already has an active shipment. A failed or cancelled shipment is cleared and the
+ * attempt goes up, so the next Biteship reference id is new. Concurrent calls get the same
+ * attempt, and Biteship rejects the duplicate reference id, so only one pickup is booked.
+ */
+export async function prepareShipment(id: string): Promise<number | null> {
+  const { rows } = await pool().query<{ attempt: number }>(
+    `update public.orders set
+       shipment_attempt = case when shipment_id is null then shipment_attempt else shipment_attempt + 1 end,
+       shipment_id = null, shipment_status = null, shipment_tracking_id = null, shipment_waybill_id = null,
+       shipment_tracking_url = null, shipment_price = null
+     where id = $1 and (shipment_id is null or shipment_status = any($2::text[]))
+     returning shipment_attempt as attempt`,
+    [id, RETRYABLE_SHIPMENT_STATUSES],
+  );
+  return rows[0]?.attempt ?? null;
+}
+
+export type ShipmentUpdate = {
+  id: string;
+  status: string | null;
+  trackingId: string | null;
+  waybillId: string | null;
+  trackingUrl: string | null;
+  price: number | null;
+};
+
+/**
+ * Saves the latest Biteship state of an order's shipment and moves the order along:
+ * picked up / on the way -> "shipped" (from new/confirmed/paid), delivered -> "completed".
+ * Cancelled orders are never touched.
+ */
+export async function applyShipment(orderId: string, s: ShipmentUpdate) {
+  await pool().query(
+    `update public.orders set
+       shipment_id = $2,
+       shipment_status = coalesce($3, shipment_status),
+       shipment_tracking_id = coalesce($4, shipment_tracking_id),
+       shipment_waybill_id = coalesce($5, shipment_waybill_id),
+       shipment_tracking_url = coalesce($6, shipment_tracking_url),
+       shipment_price = coalesce($7, shipment_price),
+       shipment_updated_at = now(),
+       status = case
+         when $3 in ('picked', 'in_transit', 'dropping_off', 'on_hold') and status in ('new', 'confirmed', 'paid')
+           then 'shipped'::public.order_status
+         when $3 = 'delivered' and status <> 'cancelled' then 'completed'::public.order_status
+         else status end
+     -- A late sync of a replaced shipment must not overwrite the new one.
+     where id = $1 and (shipment_id is null or shipment_id = $2)`,
+    [orderId, s.id, s.status, s.trackingId, s.waybillId, s.trackingUrl, s.price],
+  );
+}
+
+export async function logShippingNotification(event: string | null, shipmentId: string | null, payload: unknown) {
+  await pool().query(`insert into public.shipping_notifications (event, shipment_id, payload) values ($1, $2, $3)`, [
+    event,
+    shipmentId,
+    JSON.stringify(payload),
+  ]);
 }

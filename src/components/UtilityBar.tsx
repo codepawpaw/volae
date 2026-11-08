@@ -7,8 +7,11 @@ export function UtilityBar() {
   return (
     <div className="hidden bg-utility lg:block">
       <div className="mx-auto flex h-[35px] max-w-[1920px] items-center justify-end gap-[22px] px-14 text-[14px]">
-        <a href={whatsappLink(`Halo ${site.brandName}, saya ingin cek status pesanan saya.`)} target="_blank" rel="noopener noreferrer" className="hover:underline">
-          Track Order &amp; Return
+        <Link href="/track" className="hover:underline">
+          Track Order
+        </Link>
+        <a href={whatsappLink(`Halo ${site.brandName}, saya ingin mengajukan retur.`)} target="_blank" rel="noopener noreferrer" className="hover:underline">
+          Returns
         </a>
         <Link href="/brands" className="hover:underline">
           Brands
